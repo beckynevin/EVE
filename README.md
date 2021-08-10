@@ -1,2 +1,2 @@
 ### EVE
-.. image:: EVE_logo.png
+<img src="EVE_logo.png">
