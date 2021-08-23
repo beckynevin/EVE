@@ -25,4 +25,17 @@ source activate ciao-4.13
 It is highly encouraged to run the smoke tests to make sure everything is installed correctly.
 
 ## Download event files
-In order to do this
+To obtain the event files use this ciao command, which drops everything into a folder named by obsid in the current directory:
+```
+download_chandra_obsid 1505
+```
+where 1505 is the obsid (in this case for Cas A).
+
+More options can be found here: https://cxc.cfa.harvard.edu/ciao/ahelp/download_chandra_obsid.html
+
+In this case, the event 1 files are the priority (event 2 have flags applied, including the hyperbola selection). To get just event 1 files:
+```
+download_chandra_obsid XXXX evt1
+```
+
+## Download stowed background
