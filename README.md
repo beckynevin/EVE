@@ -39,3 +39,6 @@ download_chandra_obsid XXXX evt1
 ```
 
 ## Download stowed background
+When you install ciao, the stowed background files are already downloaded! They can be found at $CALDB/data/chandra/hrc/bkgrnd/. <-- For some reason this doesn't register for me.
+
+More details can be found here about how to determine the stowed background file that corresponds to a given observation: https://cxc.harvard.edu/ciao/threads/hrci_bg_events/
