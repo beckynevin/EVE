@@ -1,7 +1,7 @@
 ### EVE
 <img src="EVE_logo.png">
 
-## Installing CIAO, the Chandra Interactive Analysis of Operations software package, which is necessarly for downloading event files AND for running the notebooks
+## Installing CIAO, the Chandra Interactive Analysis of Operations software package, which is necessary for downloading event files AND for running the notebooks
 
 Before running any of the notebooks, you must have ciao-4.13 installed as an anaconda environment.
 
