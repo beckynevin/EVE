@@ -37,6 +37,7 @@ In this case, the event 1 files are the priority (event 2 have flags applied, in
 ```
 download_chandra_obsid XXXX evt1
 ```
+For more information, you can look up observations here: https://cda.harvard.edu/chaser/
 
 ## Download stowed background
 When you install ciao, the stowed background files are already downloaded! They can be found at $CALDB/data/chandra/hrc/bkgrnd/. <-- For some reason this doesn't register for me.
