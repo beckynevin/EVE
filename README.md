@@ -24,6 +24,11 @@ source activate ciao-4.13
 
 It is highly encouraged to run the smoke tests to make sure everything is installed correctly.
 
+If you plan to run any of the notebooks in the notebook folder also add:
+```
+conda install jupyter notebook
+```
+
 ## Download event files
 To obtain the event files use this ciao command, which drops everything into a folder named by obsid in the current directory:
 ```
