@@ -29,6 +29,12 @@ If you plan to run any of the notebooks in the notebook folder also add:
 conda install jupyter notebook
 ```
 
+There's a way better way to do this using the environment.yml file through conda:
+```
+conda env create -f environment.yml
+```
+^This will create a new environment where the name is given by the first line of the environment.yml file. I still need to test if I can successfully do this while also correctly installing all of the cxc software above. 
+
 ## Download event files
 To obtain the event files use this ciao command, which drops everything into a folder named by obsid in the current directory:
 ```
