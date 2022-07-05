@@ -9,8 +9,6 @@
 
 ###~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-
-from minio import Minio
 from knodle.model.logistic_regression_model import LogisticRegressionModel
 
 import random
@@ -18,14 +16,8 @@ import pandas as pd
 import numpy as np
 import joblib
 import torch
-from torch.utils.data import TensorDataset
-import scipy.sparse as sp
-from my_knodle_models import TinyModel, MassiveModel, SigmoidModel
 
 from torch.utils.tensorboard import SummaryWriter
-
-#from knodle.trainer.baseline.no_denoising import NoDenoisingTrainer
-#from utils.utils_ML import np_array_to_tensor_dataset
 from torch.optim import SGD
 from transformers import AdamW
 
@@ -40,61 +32,6 @@ from knodle.trainer.baseline.majority import MajorityVoteTrainer
 from knodle.trainer import AutoTrainer, AutoConfig, TrainerConfig
 from knodle.trainer import MajorityConfig, KNNConfig, SnorkelConfig, SnorkelKNNConfig
 
-
-# Took this from the knodle github for converting between arrays and tensors
-def np_array_to_tensor_dataset(x: np.ndarray) -> TensorDataset:
-    """
-    :rtype: object
-    """
-    if isinstance(x, sp.csr_matrix):
-        x = x.toarray()
-    x = torch.from_numpy(x)
-    x = TensorDataset(x)
-    return x
-
-
-def make_rules_and_y_plot(data, mapping, indices):
-    plt.clf()
-    fig = plt.figure(figsize = (2,3))
-    ax1 = fig.add_subplot(121)
-    ax1.imshow(data[indices], cmap='magma')
-    #plt.colorbar(fraction=0.0046)
-    ax1.set_xlabel('Rules')
-    ax1.set_ylabel('Data row')
-
-    ax2 = fig.add_subplot(122)
-    im2 = ax2.imshow(np.dot(data[indices], mapping), cmap='magma')
-    #plt.colorbar(fraction=0.0046)
-    #ax2.set_xlabel('Rules')
-    ax2.set_xlabel('Labels')
-    plt.colorbar(im2, fraction = 0.046)
-    plt.tight_layout()
-    plt.show()
-
-def make_rules_and_double_y_plot(data, mapping, y_noisy, indices):
-    plt.clf()
-    fig = plt.figure(figsize = (3,3))
-    ax1 = fig.add_subplot(131)
-    ax1.imshow(data[indices], cmap='magma')
-    #plt.colorbar(fraction=0.0046)
-    ax1.set_xlabel('Rules')
-    ax1.set_ylabel('Data row')
-
-    ax2 = fig.add_subplot(132)
-    im2 = ax2.imshow(np.dot(data[indices], mapping), cmap='magma')
-    #plt.colorbar(fraction=0.0046)
-    #ax2.set_xlabel('Rules')
-    ax2.set_xlabel('Labels')
-    plt.colorbar(im2, fraction = 0.046)
-
-    ax3 = fig.add_subplot(133)
-    im3 = ax3.imshow(y_noisy[indices], cmap='magma')
-    #plt.colorbar(fraction=0.0046)
-    #ax2.set_xlabel('Rules')
-    ax3.set_xlabel('Labels')
-    plt.colorbar(im3, fraction = 0.046)
-    
-    plt.show()
 
 NUM_OUTPUT_CLASSES = 2
 trainer_type = 'majority'
