@@ -1,8 +1,421 @@
-from hyperscreen import hypercore, hypercore_csv, hypercore_stowed
+import hyperscreen
+#from hyperscreen import hypercore, hypercore_csv, hypercore_stowed
 import pandas as pd
-from pulearn import BaggingPuClassifier
+#from pulearn import BaggingPuClassifier
 import seaborn as sns
 import numpy.ma as ma
+import os
+import sklearn
+from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
+from sklearn.discriminant_analysis import QuadraticDiscriminantAnalysis
+import joblib
+from sklearn.model_selection import RandomizedSearchCV
+import torch
+from torch.utils.data import TensorDataset
+import numpy as np
+import scipy.sparse as sp
+
+
+# Took this from the knodle github for converting between arrays and tensors
+def np_array_to_tensor_dataset(x: np.ndarray) -> TensorDataset:
+    """
+    :rtype: object
+    """
+    if isinstance(x, sp.csr_matrix):
+        x = x.toarray()
+    x = torch.from_numpy(x)
+    x = TensorDataset(x)
+    return x
+
+def testAndTrainIndices(test_fold, Nfolds, folds):
+
+    print('finding test and train indices...')
+
+    train_folds = np.delete(np.arange(Nfolds), test_fold)
+
+    test_ind   = [i for i in range(len(folds)) if folds[i]==test_fold]
+    train_ind  = [i for i in range(len(folds)) if folds[i] in train_folds]
+
+    return test_ind, train_ind
+
+def evaluate(model, test_features, test_labels):
+    predictions = model.predict(test_features)
+    errors = abs(predictions - test_labels)
+    mape = 100 * np.mean(errors / test_labels)
+    accuracy = 100 - mape
+    print('Model Performance')
+    print('Average Error: {:0.4f} degrees.'.format(np.mean(errors)))
+    print('Accuracy = {:0.2f}%.'.format(accuracy))
+    
+    return accuracy
+
+def run_QDA(df_merg, features_list,  model_name, verbose, hyper_fit=False, hyper = None):
+    Nfolds = 10
+    Ndat = 5000
+
+    features = df_merg[features_list].values
+    #,'nspax','re'
+    Nfeatures = len(features[0])
+
+    labels = df_merg[['class']].values
+    folds = np.arange(len(labels))%Nfolds
+    
+    
+    #Test on fold 0, train on the remaining folds:
+    test_ind, train_ind = testAndTrainIndices(test_fold = 0, Nfolds = Nfolds, folds=folds)
+    
+    #divide features and labels into test and train sets:
+    test_features = features[test_ind]
+    test_labels   = labels[test_ind]
+   
+    train_features  = features[train_ind]
+    train_labels    = labels[train_ind]
+
+    model = QuadraticDiscriminantAnalysis(store_covariance=True)
+    print('params base model')
+    print(model.get_params())
+    model.fit(train_features, train_labels)
+
+    return model
+
+def run_RFR(df_merg, features_list,  model_name, verbose, hyper_fit=False, hyper = False, save = True):
+    # These are adjustable RFR parameters
+    Nfolds = 10
+    Ndat = 5000
+
+    features = df_merg[features_list].values
+    #,'nspax','re'
+    Nfeatures = len(features[0])
+
+    print('# of featres', Nfeatures)
+    
+    #dat['features']#.reshape(-1,1)
+    labels = df_merg[['class']].values
+    folds = np.arange(len(labels))%Nfolds
+    
+    
+    #Test on fold 0, train on the remaining folds:
+    test_ind, train_ind = testAndTrainIndices(test_fold = 0, Nfolds = Nfolds, folds=folds)
+    
+    #divide features and labels into test and train sets:
+    test_features = features[test_ind]
+    test_labels   = labels[test_ind]
+   
+    train_features  = features[train_ind]
+    train_labels    = labels[train_ind]
+
+    # first check to see if the model already exists:
+    filename = model_name+'.sav'
+    print('filename', filename)
+    print('does this exist', os.path.exists(filename))
+
+    if os.path.exists(filename) and hyper == False and save == False:
+        print('loading existing model')
+        model = joblib.load(filename)
+    else:
+        # Then fit and save the model
+        #make a random forest model:
+        
+
+        if hyper_fit:
+            model = RandomForestRegressor(max_depth=10, random_state=42)
+            print('params base model')
+            print(model.get_params())
+            model.fit(train_features, train_labels)
+
+            print('base accuracy')
+            print(model.score(test_features, test_labels))
+
+
+            # Number of trees in random forest
+            n_estimators = [int(x) for x in np.linspace(start = 200, stop = 2000, num = 10)]
+            # Number of features to consider at every split
+            max_features = ['auto', 'sqrt']
+            # Maximum number of levels in tree
+            max_depth = [int(x) for x in np.linspace(10, 110, num = 11)]
+            max_depth.append(None)
+            # Minimum number of samples required to split a node
+            min_samples_split = [2, 5, 10]
+            # Minimum number of samples required at each leaf node
+            min_samples_leaf = [1, 2, 4]
+            # Method of selecting samples for training each tree
+            bootstrap = [True, False]
+            # Create the random grid
+            random_grid = {'n_estimators': n_estimators,
+                           'max_features': max_features,
+                           'max_depth': max_depth,
+                           'min_samples_split': min_samples_split,
+                           'min_samples_leaf': min_samples_leaf,
+                           'bootstrap': bootstrap}
+
+
+            model_random = RandomizedSearchCV(estimator = model, 
+                param_distributions = random_grid, 
+                n_iter = 100, # was 100
+                cv = 3, verbose=2, random_state=42, n_jobs = -1)
+            model_random.fit(train_features, train_labels)
+            print('best params')
+            print(model_random.best_params_)
+            print('best params accuracy')
+            print(model_random.score(test_features, test_labels))
+            
+            hyper = model_random.best_params_
+            model = RandomForestRegressor(n_estimators = hyper['n_estimators'],
+                    min_samples_split = hyper['min_samples_split'], 
+                    min_samples_leaf = hyper['min_samples_leaf'], 
+                    max_features = hyper['max_features'],
+                    max_depth = hyper['max_depth'],
+                    bootstrap = hyper['bootstrap'])
+         
+            model.fit(train_features, train_labels)
+            print(model.get_params())
+            print('best accuracy')
+            print(model.score(test_features, test_labels))
+            
+        else:
+            if hyper:
+                model = RandomForestRegressor(n_estimators = hyper['n_estimators'],
+                    min_samples_split = hyper['min_samples_split'], 
+                    min_samples_leaf = hyper['min_samples_leaf'], 
+                    max_features = hyper['max_features'],
+                    max_depth = hyper['max_depth'],
+                    bootstrap = hyper['bootstrap'])
+                model.fit(train_features, train_labels.ravel())
+                print(model.get_params())
+                print('base accuracy')
+                print(model.score(test_features, test_labels))
+                
+            else: # just fit the default model
+                model = RandomForestRegressor(max_depth=10, random_state=42)
+
+                model.fit(train_features, train_labels)
+        # save the model to disk
+        if save:
+            model.feature_names = features_list
+            joblib.dump(model, filename)
+
+    print('predicting...')
+    # Predict on new data
+    preds = model.predict(test_features)
+    #print out the first few mass predictions to see if they make sense:
+    if verbose:
+        for h in range(10):
+            print(test_labels[h], preds[h])
+
+    #print('made it through creating model', preds)
+    # rank feature importance:
+    importances = model.feature_importances_
+    #print('ranked importances', importances)
+    std = np.std([tree.feature_importances_ for tree in model.estimators_], axis=0)
+    indices = np.argsort(importances)[::-1]
+    
+    #print('std and indices', std, indices)
+
+    if verbose:
+        # Plot the feature importances of the forest
+        plt.clf()
+        plt.figure(figsize=(15,5))
+        #plt.title("RFR Feature importances for "+str(run))
+        plt.bar(range(Nfeatures), importances[indices], yerr=std[indices], align="center", color='pink')
+        plt.xticks(range(Nfeatures), indices)
+        plt.xlim([-1, Nfeatures])
+        plt.show()
+        
+        #plt.savefig('feature_importance_'+str(run)+'_rando.pdf')
+        
+        
+        
+        print('Importance in Order ~~~~')
+    
+    # find the index of the random one:
+    random_idx = features_list.index('random')
+    random_value = importances[random_idx]
+    random_std = std[random_idx]
+    if verbose:
+        print('random idx', random_idx)
+        print('random_value', random_value)
+    unin_here = []
+    important_here = []
+    for j in range(len(indices)):
+        #if importances[indices[j]] - std[indices[j]] > 0:
+        print(indices[j], features_list[indices[j]])
+        if importances[indices[j]] > random_value:# or importances[indices[j]] - std[indices[j]] > random_value - random_std:
+            important_here.append(features_list[indices[j]])
+        else:
+            unin_here.append(features_list[indices[j]])
+        
+  
+    return important_here, unin_here, model
+
+
+
+def run_RFC(df_merg, features_list,  model_name, verbose, hyper_fit=False, hyper = None, save = True):
+    # These are adjustable RFR parameters
+    Nfolds = 10
+    Ndat = 5000
+
+    features = df_merg[features_list].values
+    #,'nspax','re'
+    Nfeatures = len(features[0])
+
+    print('# of featres', Nfeatures)
+    
+    #dat['features']#.reshape(-1,1)
+    labels = df_merg[['class']].values
+    folds = np.arange(len(labels))%Nfolds
+    
+    
+    #Test on fold 0, train on the remaining folds:
+    test_ind, train_ind = testAndTrainIndices(test_fold = 0, Nfolds = Nfolds, folds=folds)
+    
+    #divide features and labels into test and train sets:
+    test_features = features[test_ind]
+    test_labels   = labels[test_ind]
+   
+    train_features  = features[train_ind]
+    train_labels    = labels[train_ind]
+
+    # first check to see if the model already exists:
+    filename = model_name+'.sav'
+
+    if os.path.exists(filename) and hyper == False and save == False:
+        print('loading existing model')
+        model = joblib.load(filename)
+    else:
+        # Then fit and save the model
+        #make a random forest model:
+        
+
+        if hyper_fit:
+            model = RandomForestClassifier(max_depth=10, random_state=42)
+            print('params base model')
+            print(model.get_params())
+            model.fit(train_features, train_labels)
+
+            print('base accuracy')
+            print(model.score(test_features, test_labels))
+
+
+            # Number of trees in random forest
+            n_estimators = [int(x) for x in np.linspace(start = 200, stop = 2000, num = 10)]
+            # Number of features to consider at every split
+            max_features = ['auto', 'sqrt']
+            # Maximum number of levels in tree
+            max_depth = [int(x) for x in np.linspace(10, 110, num = 11)]
+            max_depth.append(None)
+            # Minimum number of samples required to split a node
+            min_samples_split = [2, 5, 10]
+            # Minimum number of samples required at each leaf node
+            min_samples_leaf = [1, 2, 4]
+            # Method of selecting samples for training each tree
+            bootstrap = [True, False]
+            # Create the random grid
+            random_grid = {'n_estimators': n_estimators,
+                           'max_features': max_features,
+                           'max_depth': max_depth,
+                           'min_samples_split': min_samples_split,
+                           'min_samples_leaf': min_samples_leaf,
+                           'bootstrap': bootstrap}
+
+
+            model_random = RandomizedSearchCV(estimator = model, 
+                param_distributions = random_grid, 
+                n_iter = 100, 
+                cv = 3, verbose=2, random_state=42, n_jobs = -1)
+            model_random.fit(train_features, train_labels)
+            print('best params')
+            print(model_random.best_params_)
+            print('best params accuracy')
+            print(model_random.score(test_features, test_labels))
+            
+            hyper = model_random.best_params_
+            model = RandomForestClassifier(n_estimators = hyper['n_estimators'],
+                    min_samples_split = hyper['min_samples_split'], 
+                    min_samples_leaf = hyper['min_samples_leaf'], 
+                    max_features = hyper['max_features'],
+                    max_depth = hyper['max_depth'],
+                    bootstrap = hyper['bootstrap'])
+            model.fit(train_features, train_labels)
+            print(model.get_params())
+            print('best accuracy')
+            print(model.score(test_features, test_labels))
+            
+        else:
+            if hyper:
+                model = RandomForestClassifier(n_estimators = hyper['n_estimators'],
+                    min_samples_split = hyper['min_samples_split'], 
+                    min_samples_leaf = hyper['min_samples_leaf'], 
+                    max_features = hyper['max_features'],
+                    max_depth = hyper['max_depth'],
+                    bootstrap = hyper['bootstrap'])
+                model.fit(train_features, train_labels.ravel())
+                print(model.get_params())
+                print('base accuracy')
+                print(model.score(test_features, test_labels))
+                
+            else: # just fit the default model
+                model = RandomForestClassifier(max_depth=10, random_state=42)
+
+                model.fit(train_features, train_labels)
+        # save the model to disk
+        if save:
+            model.feature_names = features_list
+            joblib.dump(model, filename)
+
+    print('predicting...')
+    # Predict on new data
+    preds = model.predict(test_features)
+    #print out the first few mass predictions to see if they make sense:
+    if verbose:
+        for h in range(10):
+            print(test_labels[h], preds[h])
+
+    #print('made it through creating model', preds)
+    # rank feature importance:
+    importances = model.feature_importances_
+    #print('ranked importances', importances)
+    std = np.std([tree.feature_importances_ for tree in model.estimators_], axis=0)
+    indices = np.argsort(importances)[::-1]
+    
+    #print('std and indices', std, indices)
+
+    if verbose:
+        # Plot the feature importances of the forest
+        plt.clf()
+        plt.figure(figsize=(15,5))
+        #plt.title("RFR Feature importances for "+str(run))
+        plt.bar(range(Nfeatures), importances[indices], yerr=std[indices], align="center", color='pink')
+        plt.xticks(range(Nfeatures), indices)
+        plt.xlim([-1, Nfeatures])
+        plt.show()
+        
+        #plt.savefig('feature_importance_'+str(run)+'_rando.pdf')
+        
+        
+        
+        print('Importance in Order ~~~~')
+    
+    # find the index of the random one:
+    random_idx = features_list.index('random')
+    random_value = importances[random_idx]
+    random_std = std[random_idx]
+    if verbose:
+        print('random idx', random_idx)
+        print('random_value', random_value)
+    unin_here = []
+    important_here = []
+    for j in range(len(indices)):
+        #if importances[indices[j]] - std[indices[j]] > 0:
+        print(indices[j], features_list[indices[j]])
+        if importances[indices[j]] > random_value:# or importances[indices[j]] - std[indices[j]] > random_value - random_std:
+            important_here.append(features_list[indices[j]])
+        else:
+            unin_here.append(features_list[indices[j]])
+        
+  
+    return important_here, unin_here, model
+
+
 
 
 
@@ -582,9 +995,9 @@ def comparison_heatmap(df1, df2, xaxis, yaxis, title):
     xs_murray = df2[xaxis]
     ys_murray = df2[yaxis]
 
-    heatmapmurray, xedgesmurray, yedgesmurray = np.histogram2d(ys_murray, xs_murray, bins=bins)
+    heatmapmurray, xedgesmurray, yedgesmurray = np.histogram2d(ys_murray, xs_murray)#, bins=bins)
 
-    heatmapgrant, xedgegrant, yedgesgrant = np.histogram2d(ys_grant, xs_grant, bins=bins)
+    heatmapgrant, xedgegrant, yedgesgrant = np.histogram2d(ys_grant, xs_grant)#, bins=bins)
 
     # Make a plot that is the higher probabilities minus the smaller probabilities
     plt.clf()

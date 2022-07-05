@@ -4,6 +4,10 @@
 from astropy.io import fits
 from astropy.table import Table
 import numpy as np
+import numpy as np
+import matplotlib
+import matplotlib.pyplot as plt
+from mpl_toolkits.axes_grid1 import AxesGrid
 
 class HRCevt1:
     """This is a conceptual class representation of a Chandra High Resolution Camera (HRC) Level 1 Event File
@@ -107,7 +111,8 @@ class HRCevt1:
         self.exptime = self.header["EXPOSURE"]
 
         self.numevents = len(self.data["time"])
-        self.goodtimeevents = len(self.data["time"][self.gtimask])
+        if gti:
+            self.goodtimeevents = len(self.data["time"][self.gtimask])
         self.badtimeevents = self.numevents - self.goodtimeevents
 
         self.hyperbola_passes = np.sum(np.logical_or(
@@ -1124,5 +1129,152 @@ def styleplots():  # pragma: no cover
     plt.rcParams['xtick.labelsize'] = labelsizes
     plt.rcParams['ytick.labelsize'] = labelsizes
 
+def plot_from_df(df, name, var1, var2, aspect):
+    df = df.dropna()
+    
+    #print('this is the df you are trying to plot')
+    #print(df)
+ 
+    x = df[var1]#[0:n_points]#[np.array(binary_preds)==1]#model_lda.predict(xs)
+    y = df[var2]#[0:n_points]#[np.array(binary_preds)==1]
 
+    
+    
+    nbins=100#int(len(x)/10)
+    
+    img_data, yedges, xedges = np.histogram2d(y, x, nbins)
+    extent = [xedges[0], xedges[-1], yedges[0], yedges[-1]]
+
+    #print('# Real events: ', len(input_data.loc[good_hyperbola]), '# All events: ',len(input_data))
+    #print('# bg events: ', len(input_data)-len(input_data.loc[good_hyperbola]))
+    try:
+        plt.clf()
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+        im = ax.imshow(ma.masked_where(img_data==0, img_data),  
+                        rasterized=True, cmap='viridis',  extent=extent, 
+                       norm=matplotlib.colors.LogNorm())
+        ax.set_xlabel(var1)
+        ax.set_ylabel(var2)
+    
+        plt.colorbar(im)
+        plt.title(name)
+        ax.set_aspect(aspect)
+        #ax4.set_aspect('equal')
+        plt.show()
+    except:
+        STOP
+        plt.clf()
+        plt.imshow(ma.masked_where(img_data==0, img_data),  
+                        rasterized=True, cmap='viridis',  extent=extent, 
+                   norm=matplotlib.colors.LogNorm())
+        plt.xlabel(var1)
+        plt.ylabel(var2)
+        #plt.colorbar()
+        plt.title(name)
+        plt.set_aspect(aspect)
+        plt.show()
+    return ma.masked_where(img_data==0, img_data)
+ 
+
+
+def shiftedColorMap(cmap, start=0, midpoint=0.5, stop=1.0, name='shiftedcmap'):
+    '''
+    Function to offset the "center" of a colormap. Useful for
+    data with a negative min and positive max and you want the
+    middle of the colormap's dynamic range to be at zero.
+
+    Input
+    -----
+      cmap : The matplotlib colormap to be altered
+      start : Offset from lowest point in the colormap's range.
+          Defaults to 0.0 (no lower offset). Should be between
+          0.0 and `midpoint`.
+      midpoint : The new center of the colormap. Defaults to 
+          0.5 (no shift). Should be between 0.0 and 1.0. In
+          general, this should be  1 - vmax / (vmax + abs(vmin))
+          For example if your data range from -15.0 to +5.0 and
+          you want the center of the colormap at 0.0, `midpoint`
+          should be set to  1 - 5/(5 + 15)) or 0.75
+      stop : Offset from highest point in the colormap's range.
+          Defaults to 1.0 (no upper offset). Should be between
+          `midpoint` and 1.0.
+    '''
+    cdict = {
+        'red': [],
+        'green': [],
+        'blue': [],
+        'alpha': []
+    }
+
+    # regular index to compute the colors
+    reg_index = np.linspace(start, stop, 257)
+
+    # shifted index to match the data
+    shift_index = np.hstack([
+        np.linspace(0.0, midpoint, 128, endpoint=False), 
+        np.linspace(midpoint, 1.0, 129, endpoint=True)
+    ])
+
+    for ri, si in zip(reg_index, shift_index):
+        r, g, b, a = cmap(ri)
+
+        cdict['red'].append((si, r, r))
+        cdict['green'].append((si, g, g))
+        cdict['blue'].append((si, b, b))
+        cdict['alpha'].append((si, a, a))
+
+    newcmap = matplotlib.colors.LinearSegmentedColormap(name, cdict)
+    plt.register_cmap(cmap=newcmap)
+
+    return newcmap
+def comparison_heatmap(df, df1, df2, xaxis, yaxis, title, norm=False):
+
+    xs_1 = df1[xaxis]
+    ys_1 = df1[yaxis]
+
+    xs_2 = df2[xaxis]
+    ys_2 = df2[yaxis]
+    
+    if norm:
+        xs = df[xaxis]
+        ys = df[yaxis]
+        heatmap, xedges, yedges = np.histogram2d(ys, xs, bins=100)
+
+    
+
+    heatmap1, xedges1, yedges1 = np.histogram2d(ys_1, xs_1, bins=100)
+    
+    heatmap2, xedges2, yedges2 = np.histogram2d(ys_2, xs_2, bins=100)
+
+    # Make a plot that is the higher probabilities minus the smaller probabilities
+    plt.clf()
+    fig = plt.figure()
+    ax2=fig.add_subplot(111)
+
+    orig_cmap = matplotlib.cm.coolwarm
+    shifted_cmap = shiftedColorMap(orig_cmap, midpoint=0, name='shrunk')
+
+    if norm:
+        im2 = ax2.imshow((heatmap1 - heatmap2)/heatmap, 
+                     cmap='RdBu_r', 
+                     extent=[yedges1[0], yedges1[-1], xedges2[0], xedges2[-1]], vmin=0, vmax=1)#, 
+                     #norm = matplotlib.colors.SymLogNorm(linthresh=0.03, linscale=1), 
+                     #vmin=-10**-1, vmax=10**0, interpolation ='None')
+    else:
+        im2 = ax2.imshow((heatmap1 - heatmap2), 
+                     cmap='RdBu_r', 
+                     extent=[yedges1[0], yedges1[-1], xedges2[0], xedges2[-1]], 
+                     norm = matplotlib.colors.SymLogNorm(linthresh=0.3, linscale=1))#, 
+                     #vmin=-10**3, vmax=10**3, interpolation ='None')
+    #ax2.set_ylim(xedgesmurray[0], xedgesmurray[-1])
+    #ax2.set_xlim(yedgesmurray[0], yedgesmurray[-1])
+    plt.colorbar(im2, fraction=0.046)
+    ax2.set_xlabel(xaxis)
+    ax2.set_ylabel(yaxis)
+    #ax2.set_aspect((yedgesmurray[-1]-yedgesmurray[0])/(xedgesmurray[-1]-xedgesmurray[0]))
+
+    plt.tight_layout()
+    plt.title(title)
+    plt.show()
 
