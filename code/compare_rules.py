@@ -27,7 +27,7 @@ plot = False
 evt1 = False#True
 massive_file = True#False
 adjust_threshold = True
-model_type = 'knodle'
+
 
 # Now load in the models
 # It would be awesome to be able to do this in a list
@@ -35,8 +35,8 @@ model_name_list = ['logistic/baseline_hyper_and_energy.sav']#'logistic/majority_
 #'kNN_hyper_and_energy_and_crs_2class_NN.sav']#kNN_all_2class
 
 
-print('in model directory', os.listdir('../models/logistic/'))
-print('knodle models', os.listdir('cache/'))
+#print('in model directory', os.listdir('../models/logistic/'))
+#print('knodle models', os.listdir('cache/'))
 
 
 
@@ -58,15 +58,6 @@ for name in model_name_list:
 	print('name', name)
 	print(model.feature_names)
 
-	if model_type == 'knodle': # then its weak learning
-
-		# Get information about the model
-		print('model dict', model.__dict__)
-		# Make a giant plot that shows the events that are being relabelled
-
-
-
-	#print('modules', model._modules)
 	try:
 		print('model.model',model.model)
 
@@ -82,7 +73,7 @@ for name in model_name_list:
 	# model.data is:
 	# model_input_x_array_all = subsample[feature_list_all]
 	print('model.data', model.data)
-	print('model input', model.model_input_x)
+	#print('model input', model.model_input_x)
 	print('pre normalization', model.data[model.feature_names])
 	
 	if model.normalizer == None:
@@ -97,30 +88,25 @@ for name in model_name_list:
 	#tensor_input = torch.from_numpy(model.data[model.feature_names])
 
 	print('this is the input', tensor_input, type(tensor_input))
-	'''
-	if isinstance(model.model, skorch.NeuralNetClassifier):
-		print('this is an sklearn model')
-		predictions = model.model.predict(dataset_to_numpy_input(tensor_input))
-	else:
-	'''
-
 	
-	print('trying model.model')
-	ys = model.model.forward(tensor_input)
+	try:
+		ys = model.model.predict(tensor_input)
+	except AttributeError:
+		try:
+			ys = model.forward(tensor_input)
+		except RuntimeError:
+			ys = model.forward(tensor_input.float())
+	 
+
 	print(ys)
 	print(np.shape(ys))
-	print(ys[:,0])
+	print(ys[:,0].detach().numpy())
 
+	
 	plt.clf()
 	fig = plt.figure()
 	ax = fig.add_subplot(121)
-	ax.hist(ys[:,0].detach().numpy())
-	#ax.hist(ys[:,0].detach().numpy(), range=[-0.33,-0.32], bins=100)
-	ax.set_xlabel('ys[:,0]')
-	ax1 = fig.add_subplot(122)
-	ax1.hist(ys[:,1].detach().numpy())
-	#ax1.hist(ys[:,1].detach().numpy(), range=[-0.62,-0.61], bins=100)
-	ax1.set_xlabel('ys[:,1]')
+	ax.hist(ys[:,0].detach().numpy(), bins=100)
 	plt.show()
 
 	# IDK why these ys really span a super short range.
@@ -136,12 +122,12 @@ for name in model_name_list:
 
 	'''
 	 if isinstance(self.model, skorch.NeuralNetClassifier):
-            # when the pytorch model is wrapped as a sklearn model (e.g. cleanlab)
-            predictions = self.model.predict(dataset_to_numpy_input(features_dataset))
-        else:
-            feature_label_dataset = input_labels_to_tensordataset(features_dataset, gold_labels)
-            feature_label_dataloader = self._make_dataloader(feature_label_dataset, shuffle=False)
-            predictions, dev_loss = self._prediction_loop(feature_label_dataloader, loss_calculation)
+			# when the pytorch model is wrapped as a sklearn model (e.g. cleanlab)
+			predictions = self.model.predict(dataset_to_numpy_input(features_dataset))
+		else:
+			feature_label_dataset = input_labels_to_tensordataset(features_dataset, gold_labels)
+			feature_label_dataloader = self._make_dataloader(feature_label_dataset, shuffle=False)
+			predictions, dev_loss = self._prediction_loop(feature_label_dataloader, loss_calculation)
 	'''
 	STOP
 	
@@ -522,7 +508,7 @@ for name in model_name_list:
 	center_x = np.mean(comparison['x'].values)
 	center_y = np.mean(comparison['y'].values)
 	extent = [[np.min(comparison['x'].values), np.max(comparison['x'].values)],
-	              [np.min(comparison['y'].values), np.max(comparison['y'].values)]]
+				  [np.min(comparison['y'].values), np.max(comparison['y'].values)]]
 
 	nbins = 100
 	img_data_all, yedges, xedges = np.histogram2d(comparison['y'].values, comparison['x'].values, nbins, range=extent)
@@ -547,26 +533,26 @@ for name in model_name_list:
 	radial_bins_pix_hyper_fail = []
 
 	for k in range(len(radial_bins_pix)-1):
-	    counter_flat = 0
-	    counter_model_pass = 0
-	    counter_model_fail = 0
-	    counter_hyper_pass = 0
-	    counter_hyper_fail = 0
-	    for i in range(np.shape(img_data_flat)[0]):
-	        for j in range(np.shape(img_data_flat)[1]):
-	            # so for each pixel see how far it is in pixel bins from the center
-	            if ((i - middle_pixel_x)**2 + (j - middle_pixel_y)**2 > radial_bins_pix[k]**2) & ((i - middle_pixel_x)**2 + (j - middle_pixel_y)**2 < radial_bins_pix[k+1]**2):
-	                counter_flat+=img_data_flat[i,j] # only need to add 1 because its flat distribution
-	                counter_model_pass+=img_data_model_pass[i,j]
-	                counter_model_fail+=img_data_model_fail[i,j]
-	                counter_hyper_pass+=img_data_hyper_pass[i,j]
-	                counter_hyper_fail+=img_data_hyper_fail[i,j]
-	    radial_bins_pix_flat.append(counter_flat)
-	    radial_bins_pix_model_pass.append(counter_model_pass)
-	    radial_bins_pix_model_fail.append(counter_model_fail)
-	    radial_bins_pix_hyper_pass.append(counter_hyper_pass)
-	    radial_bins_pix_hyper_fail.append(counter_hyper_fail)
-	                
+		counter_flat = 0
+		counter_model_pass = 0
+		counter_model_fail = 0
+		counter_hyper_pass = 0
+		counter_hyper_fail = 0
+		for i in range(np.shape(img_data_flat)[0]):
+			for j in range(np.shape(img_data_flat)[1]):
+				# so for each pixel see how far it is in pixel bins from the center
+				if ((i - middle_pixel_x)**2 + (j - middle_pixel_y)**2 > radial_bins_pix[k]**2) & ((i - middle_pixel_x)**2 + (j - middle_pixel_y)**2 < radial_bins_pix[k+1]**2):
+					counter_flat+=img_data_flat[i,j] # only need to add 1 because its flat distribution
+					counter_model_pass+=img_data_model_pass[i,j]
+					counter_model_fail+=img_data_model_fail[i,j]
+					counter_hyper_pass+=img_data_hyper_pass[i,j]
+					counter_hyper_fail+=img_data_hyper_fail[i,j]
+		radial_bins_pix_flat.append(counter_flat)
+		radial_bins_pix_model_pass.append(counter_model_pass)
+		radial_bins_pix_model_fail.append(counter_model_fail)
+		radial_bins_pix_hyper_pass.append(counter_hyper_pass)
+		radial_bins_pix_hyper_fail.append(counter_hyper_fail)
+					
 	dist_flat = radial_bins_pix_flat/np.max(radial_bins_pix_flat)
 	dist_model_pass = radial_bins_pix_model_pass/np.max(radial_bins_pix_model_pass)
 	dist_model_fail = radial_bins_pix_model_fail/np.max(radial_bins_pix_model_fail)
@@ -894,8 +880,8 @@ if plot:
 		y = y_list[i]
 		plt.clf()
 		plt.scatter(subsample[x].values,
-		            subsample[y].values,
-		           c=subsample['class'],  s=0.5)
+					subsample[y].values,
+				   c=subsample['class'],  s=0.5)
 		plt.colorbar()
 		plt.xlabel(x)
 		plt.ylabel(y)
@@ -927,8 +913,8 @@ if plot:
 		y = y_list[i]
 		plt.clf()
 		plt.scatter(classify[x].values,
-		            classify[y].values,
-		           c=classify['class'],  s=0.5)
+					classify[y].values,
+				   c=classify['class'],  s=0.5)
 		plt.colorbar()
 		plt.xlabel(x)
 		plt.ylabel(y)
@@ -936,8 +922,8 @@ if plot:
 
 suffix = 'avs'
 most_imp, unimportant, model  = utils_ML.run_RFR(classify, 
-    feature_list_RF, '../models/RFR_'+str(suffix), 
-    verbose=True, hyper_fit = False, refit = False)
+	feature_list_RF, '../models/RFR_'+str(suffix), 
+	verbose=True, hyper_fit = False, refit = False)
 
 # Okay now try to see how it worked
 # compare 1505 between both
@@ -955,8 +941,8 @@ if plot:
 		y = y_list[i]
 		plt.clf()
 		plt.scatter(data[x].values,
-		            data[y].values,
-		           c=data['class'],  s=0.5)
+					data[y].values,
+				   c=data['class'],  s=0.5)
 		plt.colorbar()
 		plt.xlabel(x)
 		plt.ylabel(y)
@@ -1004,11 +990,11 @@ if plot:
 		y = y_list[i]
 		plt.clf()
 		plt.scatter(data_fail[x].values,
-		            data_fail[y].values,
-		            s=0.5, label='fail')
+					data_fail[y].values,
+					s=0.5, label='fail')
 		plt.scatter(data_pass[x].values,
-		            data_pass[y].values,
-		           s=0.5, label='pass')
+					data_pass[y].values,
+				   s=0.5, label='pass')
 		plt.legend()
 		plt.xlabel(x)
 		plt.ylabel(y)
