@@ -19,7 +19,7 @@ sys.path.append("..")
 from utils_for_knodle import np_array_to_tensor
 
 def calc_confusion(y_predicted_array, y_test_array):
-    print('tp list', [1 if (y_predicted_array[i] == 1 and y_test_array[i] == 1) else 0 for i, x in enumerate(y_test_array)])
+    #print('tp list', [1 if (y_predicted_array[i] == 1 and y_test_array[i] == 1) else 0 for i, x in enumerate(y_test_array)])
     TP = np.sum([1 if (y_predicted_array[i] == 1 and y_test_array[i] == 1) else 0 for i, x in enumerate(y_test_array)])
     TN = np.sum([1 if (y_predicted_array[i] == 0 and y_test_array[i] == 0) else 0 for i, x in enumerate(y_test_array)])
     FP = np.sum([1 if (y_predicted_array[i] == 1 and y_test_array[i] == 0) else 0 for i, x in enumerate(y_test_array)])
@@ -48,7 +48,8 @@ subsample_test = pd.read_csv('../data/mega_dfs/test.csv',sep='\t')
 # Now load in the models
 # It would be awesome to be able to do this in a list
 # 'logistic/majority_hyper_and_energy.sav']
-model_name_list = ['logistic/baseline_hyper_and_energy.sav']
+model_name_list = ['logistic/majority_hyper_and_energy.sav',
+                   'logistic/baseline_hyper_and_energy.sav']
 # 'kNN_hyper_and_energy_and_crs_2class_NN.sav']#kNN_all_2class
 
 
@@ -93,19 +94,24 @@ for name in model_name_list:
     
     
     try:
-        ys = model.model.predict(tensor_input)
+        #ys = model.model.predict(tensor_input)
+        ys = model.model.forward(tensor_input)
     except AttributeError:
         try:
             ys = model.forward(tensor_input)
         except RuntimeError:
             ys = model.forward(tensor_input.float())
+    print('ys', ys)
+    print('detached', ys[:, 0].detach().numpy())
+    STOP
             
     y_predicted = ys[:, 0].detach().numpy()
     
-    compare_list = ['class overall','class hyper']
+    compare_list = ['class overall','class hyper','class steve','class stowed']
     
     # Okay for a bunch of different ys, print stuff
     for comparison_thing in compare_list:
+        print('comparing to this ~~~~~~ ', comparison_thing)
         
         y_actual = subsample_test[comparison_thing].values#).float()
         
@@ -115,15 +121,17 @@ for name in model_name_list:
         
         
         # accuracy with rounding
-        acc = ys[:, 0].round().eq(y_train_tensor.round()).sum() / float(y_train.shape[0])
+        acc = ys[:, 0].round().eq(y_actual_tensor.round()).sum() / float(y_actual.shape[0])
         print('test accuracy hyper', acc)
         
-        TP, TN, FP, FN = calc_confusion(y_predicted.round(), y_train.round())
+        TP, TN, FP, FN = calc_confusion(y_predicted.round(), y_actual.round())
         print('confusion')
         print('accuracy', (TP + TN)/(TP+TN+FP+FN))
         print('precision', TP / (TP + FP))
         print('recall', TP / (TP + FN))
-    STOP
+    
+    
+    continue
     
 
     
