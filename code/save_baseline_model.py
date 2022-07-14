@@ -21,9 +21,9 @@ import numpy as np
 import joblib
 import torch
 import matplotlib.pyplot as plt
-import sys
-sys.path.append("..")
-from utils.utils_for_knodle import *
+#import sys
+#sys.path.append("..")
+from utils_for_knodle import *
 from my_knodle_models import LogisticRegression_no_float
 from sklearn import preprocessing
 
@@ -39,50 +39,10 @@ predictors = 'hyper_and_energy'
 norm = True
 
 # First step is to import your data
-# This has 1e7 lines of data:
-df = pd.read_csv('../data/mega_dfs/weak_supervision_with_steve.csv', sep='\t')
-#df = df[df['id']=='1505']
+subsample = pd.read_csv('../data/mega_dfs/training.csv',sep='\t')
+subsample_dev = pd.read_csv('../data/mega_dfs/dev.csv',sep='\t')
+subsample_test = pd.read_csv('../data/mega_dfs/test.csv',sep='\t')
 
-df = df[(df['id']=='1505') | (df['id']=='1287') | (df['id']=='579') | (df['id']=='hrciD2007-01-01bkgrndN0002.fits')]
-
-
-df['class stowed'] = df['class stowed'].fillna(0)
-
-df = df.dropna()
-
-
-
-
-
-
-
-# also create a dev sample:
-
-# Get a smaller sample please :0
-smaller_sample = df.sample(n=int(1e5))
-
-# Take this smaller sample and reassign the rules for the stowed class:
-smaller_sample['class stowed'] = smaller_sample['class stowed'].replace([1],int(-1))
-smaller_sample['class stowed'] = smaller_sample['class stowed'].replace([0],int(1))
-smaller_sample['class stowed'] = smaller_sample['class stowed'].replace([-1],int(0))
-
-# Make an overall classification that is the sum of 
-# class stowed, class hyper, class steve
-
-smaller_sample['class overall'] = 1/3. * smaller_sample['class hyper'] + 1/3. * smaller_sample['class steve'] + 1/3. * smaller_sample['class stowed']
-
-print(smaller_sample[['class hyper', 'class steve', 'class stowed','class overall']])
-
-
-
-subsample = smaller_sample.sample(frac = 0.8)
-
-
-rest_subsample = smaller_sample.drop(subsample.index)
-# Now split this 50/50 into an CV and a test sample:
-
-subsample_dev = rest_subsample.sample(frac = 0.5)
-subsample_test = rest_subsample.drop(subsample_dev.index)
 
 
 

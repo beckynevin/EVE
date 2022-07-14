@@ -100,25 +100,30 @@ for name in model_name_list:
         except RuntimeError:
             ys = model.forward(tensor_input.float())
             
-    
-    
-    # Okay for a bunch of different ys, print stuff
-    y_actual = subsample_test['class overall'].values#).float()
-    
-    y_actual_tensor = np_array_to_tensor(y_actual).float()
-    y_actual_tensor = y_actual_tensor.view(y_actual_tensor.shape[0],1)
-    
     y_predicted = ys[:, 0].detach().numpy()
     
-    # accuracy with rounding
-    acc = ys[:, 0].round().eq(y_train_tensor.round()).sum() / float(y_train.shape[0])
-    print('test accuracy hyper', acc)
+    compare_list = ['class overall','class hyper']
     
-    TP, TN, FP, FN = calc_confusion(y_predicted.round(), y_train.round())
-    print('confusion')
-    print('accuracy', (TP + TN)/(TP+TN+FP+FN))
-    print('precision', TP / (TP + FP))
-    print('recall', TP / (TP + FN))
+    # Okay for a bunch of different ys, print stuff
+    for comparison_thing in compare_list:
+        
+        y_actual = subsample_test[comparison_thing].values#).float()
+        
+        y_actual_tensor = np_array_to_tensor(y_actual).float()
+        y_actual_tensor = y_actual_tensor.view(y_actual_tensor.shape[0],1)
+        
+        
+        
+        # accuracy with rounding
+        acc = ys[:, 0].round().eq(y_train_tensor.round()).sum() / float(y_train.shape[0])
+        print('test accuracy hyper', acc)
+        
+        TP, TN, FP, FN = calc_confusion(y_predicted.round(), y_train.round())
+        print('confusion')
+        print('accuracy', (TP + TN)/(TP+TN+FP+FN))
+        print('precision', TP / (TP + FP))
+        print('recall', TP / (TP + FN))
+    STOP
     
 
     
