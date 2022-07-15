@@ -11,7 +11,6 @@ import matplotlib.pyplot as plt
 import matplotlib
 import numpy as np
 # import seaborn as sns
-from scipy.stats.contingency import margins
 import pandas as pd
 # import astropy.io.fits as fits
 import sys
@@ -25,6 +24,28 @@ def calc_confusion(y_predicted_array, y_test_array):
     FP = np.sum([1 if (y_predicted_array[i] == 1 and y_test_array[i] == 0) else 0 for i, x in enumerate(y_test_array)])
     FN = np.sum([1 if (y_predicted_array[i] == 0 and y_test_array[i] == 1) else 0 for i, x in enumerate(y_test_array)])
     return TP, TN, FP, FN
+
+def predict_fxn(model, subsample_test, sigmoid = True):
+    if model.normalizer == None:
+        tensor_input = torch.from_numpy(subsample_test[model.feature_names].to_numpy())
+    else:
+       
+        tensor_input = torch.from_numpy(
+            model.normalizer.transform(subsample_test[model.feature_names]))
+    
+    
+    try:
+        #ys = model.model.predict(tensor_input)
+        ys = model.model.forward(tensor_input)
+    except AttributeError:
+        try:
+            ys = model.forward(tensor_input)
+        except RuntimeError:
+            ys = model.forward(tensor_input.float())
+    if sigmoid:
+        ys = torch.sigmoid(ys)      
+    y_predicted = ys[:, 0].detach().numpy()
+    return y_predicted, ys
 
 def run_bright_dark_test(bright, dark):
     # cut down bright
@@ -202,6 +223,142 @@ def run_bright_dark_test(bright, dark):
     
     return bright_frac, len(real)/len(dark)
 
+def radial_test(model, test):
+    # % rejected as a function of radius (from center)
+    extent = [[np.min(test['x'].values), np.max(test['x'].values)],
+                  [np.min(test['y'].values), np.max(test['y'].values)]]
+    
+    hyper_pass = test[test['class hyper'] == 1]
+    hyper_fail = test[test['class hyper'] == 0]
+    
+    y_predicted, _ = predict_fxn(model, test)
+    
+    data_pass = test[y_predicted > 0.5]
+    data_fail = test[y_predicted < 0.5]
+
+    nbins = 100
+    img_data_all, yedges, xedges = np.histogram2d(test['y'].values, test['x'].values, nbins, range=extent)
+    img_data_model_pass, yedges, xedges = np.histogram2d(data_pass['y'].values, data_pass['x'].values, nbins, range=extent)
+    img_data_model_fail, yedges, xedges = np.histogram2d(data_fail['y'].values, data_fail['x'].values, nbins, range=extent)
+    img_data_hyper_pass, yedges, xedges = np.histogram2d(hyper_pass['y'].values, hyper_pass['x'].values, nbins, range=extent)
+    img_data_hyper_fail, yedges, xedges = np.histogram2d(hyper_fail['y'].values, hyper_fail['x'].values, nbins, range=extent)
+
+
+    img_data_flat = np.minimum(img_data_all, 1)
+    middle_pixel_x = np.shape(img_data_flat)[0]/2
+    middle_pixel_y = np.shape(img_data_flat)[1]/2
+
+
+    extent = np.shape(img_data_flat)[0]
+
+    radial_bins_pix = np.linspace(0,extent/2 + extent/8,50)
+    radial_bins_pix_flat = []
+    radial_bins_pix_model_pass = []
+    radial_bins_pix_model_fail = []
+    radial_bins_pix_hyper_pass = []
+    radial_bins_pix_hyper_fail = []
+
+    for k in range(len(radial_bins_pix)-1):
+        counter_flat = 0
+        counter_model_pass = 0
+        counter_model_fail = 0
+        counter_hyper_pass = 0
+        counter_hyper_fail = 0
+        for i in range(np.shape(img_data_flat)[0]):
+            for j in range(np.shape(img_data_flat)[1]):
+                # so for each pixel see how far it is in pixel bins from the center
+                if ((i - middle_pixel_x)**2 + (j - middle_pixel_y)**2 > radial_bins_pix[k]**2) & ((i - middle_pixel_x)**2 + (j - middle_pixel_y)**2 < radial_bins_pix[k+1]**2):
+                    counter_flat+=img_data_flat[i,j] # only need to add 1 because its flat distribution
+                    counter_model_pass+=img_data_model_pass[i,j]
+                    counter_model_fail+=img_data_model_fail[i,j]
+                    counter_hyper_pass+=img_data_hyper_pass[i,j]
+                    counter_hyper_fail+=img_data_hyper_fail[i,j]
+        radial_bins_pix_flat.append(counter_flat)
+        radial_bins_pix_model_pass.append(counter_model_pass)
+        radial_bins_pix_model_fail.append(counter_model_fail)
+        radial_bins_pix_hyper_pass.append(counter_hyper_pass)
+        radial_bins_pix_hyper_fail.append(counter_hyper_fail)
+                    
+    dist_flat = radial_bins_pix_flat/np.max(radial_bins_pix_flat)
+    dist_model_pass = radial_bins_pix_model_pass/np.max(radial_bins_pix_model_pass)
+    dist_model_fail = radial_bins_pix_model_fail/np.max(radial_bins_pix_model_fail)
+
+    
+    # dist_model_pass_minus_fail
+
+    dist_hyper_pass = radial_bins_pix_hyper_pass/np.max(radial_bins_pix_hyper_pass)
+    dist_hyper_fail = radial_bins_pix_hyper_fail/np.max(radial_bins_pix_hyper_fail)
+
+    '''
+    hx_flat, hy_flat = margins(img_data_flat)
+    hx_model_pass, hy_model_pass = margins(img_data_model_pass)
+    hx_model_fail, hy_model_fail = margins(img_data_model_fail)
+    hx_hyper_pass, hy_hyper_pass = margins(img_data_hyper_pass)
+    hx_hyper_fail, hy_hyper_fail = margins(img_data_hyper_fail)
+
+    # print('hx all', hx_all.T[0], 'hy all', hy_all[0])
+    # hx_flat, hy_flat = img_data_flat.sum(axis=0), img_data_flat.sum(axis=1)
+    # hx_all, hy_all = img_data_all.sum(axis=0), img_data_all.sum(axis=1)
+
+    xs = np.linspace(0, len(hx_flat.T[0])-1, len(hx_flat.T[0]))
+    ys = np.linspace(0, len(hy_flat[0])-1, len(hy_flat[0]))
+    '''
+
+    plt.clf()
+
+    sns.set_style('darkgrid')
+
+    fig = plt.figure(figsize=(15,5))
+    ax0 = fig.add_subplot(111)
+    ax0.step(radial_bins_pix[:-1], dist_flat, label='flat', color='black')
+    ax0.step(radial_bins_pix[:-1], dist_model_pass, label='model pass', color='#210124')
+    ax0.step(radial_bins_pix[:-1], dist_model_fail, label='model fail', color='#F8333C')
+    ax0.step(radial_bins_pix[:-1], dist_hyper_pass, label='hyper pass', color='#750D37')
+    ax0.step(radial_bins_pix[:-1], dist_hyper_fail, label='hyper fail', color='#BDBF09')
+
+    plt.legend()
+    ax0.set_xlabel('Distribution in r')
+    ax0.set_title('Model is '+str(name)+', features = '+str(feature_names))
+    plt.show()
+
+
+    plt.clf()
+
+    fig = plt.figure(figsize=(15,7))
+    ax1 = fig.add_subplot(311)
+    ax1.step(radial_bins_pix[:-1], dist_model_pass - dist_model_fail, label='model pass - fail', color='#F8333C')
+    ax1.step(radial_bins_pix[:-1], dist_hyper_pass - dist_hyper_fail, label='hyper pass - fail', color='#BDBF09')
+    ax1.set_xlabel('Normalized difference')
+    ax1.legend()
+    
+    ax2 = fig.add_subplot(312)
+
+    ax2.step(radial_bins_pix[:-1], radial_bins_pix_model_pass, label='model pass', color='#F8333C')
+    ax2.step(radial_bins_pix[:-1], radial_bins_pix_hyper_pass, label='hyper pass', color='#BDBF09')
+    ax2.set_xlabel('absolute number')
+    ax2.legend()
+
+    ax3 = fig.add_subplot(313)
+
+    ax3.step(radial_bins_pix[:-1], radial_bins_pix_model_fail, label='model fail', color='#F8333C')
+    ax3.step(radial_bins_pix[:-1], radial_bins_pix_hyper_fail, label='hyper fail', color='#BDBF09')
+    ax3.set_xlabel('absolute number')
+    ax3.legend()
+    '''
+    ax0.step(radial_bins_pix[:-1], dist_model_pass, label='model pass', color='#3A405A')
+    ax0.step(radial_bins_pix[:-1], dist_model_fail, label='model fail', color='#AEC5EB')
+    ax0.step(radial_bins_pix[:-1], dist_hyper_pass, label='hyper pass', color='#685044')
+    ax0.step(radial_bins_pix[:-1], dist_hyper_fail, label='hyper fail', color='#E9AFA3')
+
+    '''
+    plt.tight_layout()
+    plt.show()
+    
+    # How to quantify this? Maybe you don't need to?
+
+
+
+
 # So there are two options here:
 # 1) Pull from a new evt1 file (evt1 = True)
 # 2) Pull from a saved csv file (massive_file = True)
@@ -258,29 +415,10 @@ for name in model_name_list:
     # stowed is 1 if background, so it reverse activates
     
     # so model.data used to be the old input
+    
+    y_predicted, ys = predict_fxn(model, subsample_test, sigmoid = True)
 
-    if model.normalizer == None:
-        print('no norm')
-        tensor_input = torch.from_numpy(subsample_test[model.feature_names].to_numpy())
-    else:
-       
-        tensor_input = torch.from_numpy(
-            model.normalizer.transform(subsample_test[model.feature_names]))
     
-    
-    try:
-        #ys = model.model.predict(tensor_input)
-        ys = model.model.forward(tensor_input)
-    except AttributeError:
-        try:
-            ys = model.forward(tensor_input)
-        except RuntimeError:
-            ys = model.forward(tensor_input.float())
-    print('ys', ys)
-    print('detached', ys[:, 0].detach().numpy())
-    
-            
-    y_predicted = ys[:, 0].detach().numpy()
     
     compare_list = ['class overall','class hyper','class steve','class stowed']
     
@@ -311,8 +449,10 @@ for name in model_name_list:
     # 2) a radial comparison (for 1505?)
     
     # 1) running the bright dark test
-    frac_fg_bright, frac_fg_dark = run_bright_dark_test(subsample_train[subsample_train['id']=='1505'], subsample_train[subsample_train['id']=='hrciD2007-01-01bkgrndN0002.fits'])
+    #frac_fg_bright, frac_fg_dark = run_bright_dark_test(subsample_train[subsample_train['id']=='1505'], subsample_train[subsample_train['id']=='hrciD2007-01-01bkgrndN0002.fits'])
     
+    # 2) a radial comparison (for cas A?)
+    radial_test(model, subsample_train[subsample_train['id']=='1505'])
     
     break
     
@@ -727,173 +867,7 @@ for name in model_name_list:
 
     
 
-    # % rejected as a function of radius (from center)
-    center_x = np.mean(comparison['x'].values)
-    center_y = np.mean(comparison['y'].values)
-    extent = [[np.min(comparison['x'].values), np.max(comparison['x'].values)],
-                  [np.min(comparison['y'].values), np.max(comparison['y'].values)]]
-
-    nbins = 100
-    img_data_all, yedges, xedges = np.histogram2d(comparison['y'].values, comparison['x'].values, nbins, range=extent)
-    img_data_model_pass, yedges, xedges = np.histogram2d(data_pass['y'].values, data_pass['x'].values, nbins, range=extent)
-    img_data_model_fail, yedges, xedges = np.histogram2d(data_fail['y'].values, data_fail['x'].values, nbins, range=extent)
-    img_data_hyper_pass, yedges, xedges = np.histogram2d(hyper_pass['y'].values, hyper_pass['x'].values, nbins, range=extent)
-    img_data_hyper_fail, yedges, xedges = np.histogram2d(hyper_fail['y'].values, hyper_fail['x'].values, nbins, range=extent)
-
-
-    img_data_flat = np.minimum(img_data_all, 1)
-    middle_pixel_x = np.shape(img_data_flat)[0]/2
-    middle_pixel_y = np.shape(img_data_flat)[1]/2
-
-
-    extent = np.shape(img_data_flat)[0]
-
-    radial_bins_pix = np.linspace(0,extent/2 + extent/8,50)
-    radial_bins_pix_flat = []
-    radial_bins_pix_model_pass = []
-    radial_bins_pix_model_fail = []
-    radial_bins_pix_hyper_pass = []
-    radial_bins_pix_hyper_fail = []
-
-    for k in range(len(radial_bins_pix)-1):
-        counter_flat = 0
-        counter_model_pass = 0
-        counter_model_fail = 0
-        counter_hyper_pass = 0
-        counter_hyper_fail = 0
-        for i in range(np.shape(img_data_flat)[0]):
-            for j in range(np.shape(img_data_flat)[1]):
-                # so for each pixel see how far it is in pixel bins from the center
-                if ((i - middle_pixel_x)**2 + (j - middle_pixel_y)**2 > radial_bins_pix[k]**2) & ((i - middle_pixel_x)**2 + (j - middle_pixel_y)**2 < radial_bins_pix[k+1]**2):
-                    counter_flat+=img_data_flat[i,j] # only need to add 1 because its flat distribution
-                    counter_model_pass+=img_data_model_pass[i,j]
-                    counter_model_fail+=img_data_model_fail[i,j]
-                    counter_hyper_pass+=img_data_hyper_pass[i,j]
-                    counter_hyper_fail+=img_data_hyper_fail[i,j]
-        radial_bins_pix_flat.append(counter_flat)
-        radial_bins_pix_model_pass.append(counter_model_pass)
-        radial_bins_pix_model_fail.append(counter_model_fail)
-        radial_bins_pix_hyper_pass.append(counter_hyper_pass)
-        radial_bins_pix_hyper_fail.append(counter_hyper_fail)
-                    
-    dist_flat = radial_bins_pix_flat/np.max(radial_bins_pix_flat)
-    dist_model_pass = radial_bins_pix_model_pass/np.max(radial_bins_pix_model_pass)
-    dist_model_fail = radial_bins_pix_model_fail/np.max(radial_bins_pix_model_fail)
-
-    radial_rejected.append(radial_bins_pix_model_fail)
-
-    # dist_model_pass_minus_fail
-
-    dist_hyper_pass = radial_bins_pix_hyper_pass/np.max(radial_bins_pix_hyper_pass)
-    dist_hyper_fail = radial_bins_pix_hyper_fail/np.max(radial_bins_pix_hyper_fail)
-
-
-    hx_flat, hy_flat = margins(img_data_flat)
-    hx_model_pass, hy_model_pass = margins(img_data_model_pass)
-    hx_model_fail, hy_model_fail = margins(img_data_model_fail)
-    hx_hyper_pass, hy_hyper_pass = margins(img_data_hyper_pass)
-    hx_hyper_fail, hy_hyper_fail = margins(img_data_hyper_fail)
-
-    # print('hx all', hx_all.T[0], 'hy all', hy_all[0])
-    # hx_flat, hy_flat = img_data_flat.sum(axis=0), img_data_flat.sum(axis=1)
-    # hx_all, hy_all = img_data_all.sum(axis=0), img_data_all.sum(axis=1)
-
-    xs = np.linspace(0, len(hx_flat.T[0])-1, len(hx_flat.T[0]))
-    ys = np.linspace(0, len(hy_flat[0])-1, len(hy_flat[0]))
-
-
-    plt.clf()
-
-    sns.set_style('darkgrid')
-
-    fig = plt.figure(figsize=(15,5))
-    ax0 = fig.add_subplot(111)
-    ax0.step(radial_bins_pix[:-1], dist_flat, label='flat', color='black')
-    ax0.step(radial_bins_pix[:-1], dist_model_pass, label='model pass', color='#210124')
-    ax0.step(radial_bins_pix[:-1], dist_model_fail, label='model fail', color='#F8333C')
-    ax0.step(radial_bins_pix[:-1], dist_hyper_pass, label='hyper pass', color='#750D37')
-    ax0.step(radial_bins_pix[:-1], dist_hyper_fail, label='hyper fail', color='#BDBF09')
-
-    plt.legend()
-    ax0.set_xlabel('Distribution in r')
-    ax0.set_title('Model is '+str(name)+', features = '+str(feature_names))
-    plt.show()
-
-
-    plt.clf()
-
-    fig = plt.figure(figsize=(15,7))
-    ax1 = fig.add_subplot(311)
-    ax1.step(radial_bins_pix[:-1], dist_model_pass - dist_model_fail, label='model pass - fail', color='#F8333C')
-    ax1.step(radial_bins_pix[:-1], dist_hyper_pass - dist_hyper_fail, label='hyper pass - fail', color='#BDBF09')
-    ax1.set_xlabel('Normalized difference')
-    ax1.legend()
     
-    ax2 = fig.add_subplot(312)
-
-    ax2.step(radial_bins_pix[:-1], radial_bins_pix_model_pass, label='model pass', color='#F8333C')
-    ax2.step(radial_bins_pix[:-1], radial_bins_pix_hyper_pass, label='hyper pass', color='#BDBF09')
-    ax2.set_xlabel('absolute number')
-    ax2.legend()
-
-    ax3 = fig.add_subplot(313)
-
-    ax3.step(radial_bins_pix[:-1], radial_bins_pix_model_fail, label='model fail', color='#F8333C')
-    ax3.step(radial_bins_pix[:-1], radial_bins_pix_hyper_fail, label='hyper fail', color='#BDBF09')
-    ax3.set_xlabel('absolute number')
-    ax3.legend()
-    '''
-    ax0.step(radial_bins_pix[:-1], dist_model_pass, label='model pass', color='#3A405A')
-    ax0.step(radial_bins_pix[:-1], dist_model_fail, label='model fail', color='#AEC5EB')
-    ax0.step(radial_bins_pix[:-1], dist_hyper_pass, label='hyper pass', color='#685044')
-    ax0.step(radial_bins_pix[:-1], dist_hyper_fail, label='hyper fail', color='#E9AFA3')
-
-    '''
-    plt.tight_layout()
-    plt.show()
-
-plt.clf()
-fig = plt.figure(figsize=(15,7))
-ax = fig.add_subplot(111)
-ax.step(radial_bins_pix[:-1], radial_bins_pix_hyper_fail, label='hyperscreen', color='black')
-
-for i in range(len(model_name_list)):
-    ax.step(radial_bins_pix[:-1], radial_rejected[i], label=model_name_list[i])
-plt.legend()
-plt.xlabel('radial bins')
-plt.ylabel('number of events')
-plt.title('failed events')
-plt.show()
-
-plt.clf()
-fig = plt.figure(figsize=(15,7))
-ax = fig.add_subplot(111)
-
-model_colors =['#0B3954','#087E8B','#BFD7EA','#FF5A5F','#C81D25']
-print(radial_bins_pix, radial_bins_pix[:-1])
-# = thresh_list[np.where(radial_bins_pix == radial_bins_pix.flat[np.abs(radial_bins_pix[:-1] - 10).argmin()])[0][0]]
-starting_index = np.where(radial_bins_pix == radial_bins_pix.flat[np.abs(radial_bins_pix[:-1] - 10).argmin()])[0][0]
-print('this index is closest to 10', starting_index)
-
-
-for i in range(len(model_name_list)):
-    diff = []
-    for j in range(len(radial_rejected[i])):
-        if j > starting_index:
-            diff.append(radial_bins_pix_hyper_fail[j] - radial_rejected[i][j])
-        else:
-            diff.append(0)
-
-
-    ax.step(radial_bins_pix[:-1], diff, label=model_name_list[i], color=model_colors[i])
-    print(model_name_list[i], np.sum(diff))
-    print('normalized by number of bins', np.sum(diff)/len(radial_bins_pix_hyper_fail))
-plt.legend()
-plt.xlabel('radial bins')
-plt.ylabel('hyper - num of events')
-plt.title('Fail hyper - fail model')
-plt.show()
-
 
 
 
