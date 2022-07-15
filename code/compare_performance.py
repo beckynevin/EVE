@@ -3,13 +3,13 @@
 # Compare the performance of various models
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+from pickle import STOP
 import torch
 import seaborn as sns
 import joblib
 import matplotlib.pyplot as plt
 import matplotlib
 import numpy as np
-import numpy.ma as ma
 # import seaborn as sns
 from scipy.stats.contingency import margins
 import pandas as pd
@@ -26,7 +26,181 @@ def calc_confusion(y_predicted_array, y_test_array):
     FN = np.sum([1 if (y_predicted_array[i] == 0 and y_test_array[i] == 1) else 0 for i, x in enumerate(y_test_array)])
     return TP, TN, FP, FN
 
-
+def run_bright_dark_test(bright, dark):
+    # cut down bright
+    middle_x = np.mean(bright['x'].values)
+    middle_y = np.mean(bright['y'].values)
+    print(middle_x, middle_y)
+    print('length of bright before', len(bright))
+    bright = bright[np.sqrt((bright['x'] - middle_x)**2 + (bright['y'] - middle_y)**2) < 40**2]
+    print('length after cutout', len(bright))
+    
+    
+    
+    # do bright first
+    if model.normalizer == None:
+        tensor_input = torch.from_numpy(bright[model.feature_names].to_numpy())
+    else:
+       
+        tensor_input = torch.from_numpy(
+            model.normalizer.transform(bright[model.feature_names]))
+    
+    # make predictions for all of these
+    try:
+        #ys = model.model.predict(tensor_input)
+        ys = model.model.forward(tensor_input)
+    except AttributeError:
+        try:
+            ys = model.forward(tensor_input)
+        except RuntimeError:
+            ys = model.forward(tensor_input.float())
+    ys = torch.sigmoid(ys)
+             
+    y_predicted = ys[:, 0].detach().numpy()
+    # Now divide into things that are classified as background and foreground
+    plt.clf()
+    plt.hist(y_predicted, bins = 100)
+    plt.show()
+    
+    real_hyper = bright[bright['class hyper'] == 1]
+    fake_hyper = bright[bright['class hyper'] == 0]
+    print(bright.columns)
+    
+    real_majority = bright[bright['class overall'] > 0.5]
+    fake_majority = bright[bright['class overall'] < 0.5]
+    
+    real = bright[y_predicted > 0.5]
+    fake = bright[y_predicted < 0.5]
+    
+    bright_frac = len(real)/len(bright)
+    
+    print('length real', len(real)/len(bright))
+    print('length fake', len(fake)/len(bright))
+    
+    nbins = 50
+    # Make an image
+    img_real_hyper, yedges, xedges = np.histogram2d(real_hyper['y'].values, real_hyper['x'].values, nbins)#, range=extent)
+    img_fake_hyper, yedges, xedges = np.histogram2d(fake_hyper['y'].values, fake_hyper['x'].values, nbins)#, range=extent)
+   
+    img_real_majority, yedges, xedges = np.histogram2d(real_majority['y'].values, real_majority['x'].values, nbins)#, range=extent)
+    img_fake_majority, yedges, xedges = np.histogram2d(fake_majority['y'].values, fake_majority['x'].values, nbins)#, range=extent)
+    
+    img_real, yedges, xedges = np.histogram2d(real['y'].values, real['x'].values, nbins)#, range=extent)
+    img_fake, yedges, xedges = np.histogram2d(fake['y'].values, fake['x'].values, nbins)#, range=extent)
+   
+    fig = plt.figure()
+    ax = fig.add_subplot(321)
+    ax.imshow(img_real_hyper, norm=matplotlib.colors.LogNorm(), cmap='magma')
+    ax.set_title(f'Hyper Foreground, # = {len(real_hyper)}')
+    ax.axis('off')
+    ax1 = fig.add_subplot(322)
+    ax1.imshow(img_fake_hyper, norm=matplotlib.colors.LogNorm(), cmap='magma')
+    ax1.set_title(f'Hyper Background, # = {len(fake_hyper)}')
+    ax1.axis('off')
+    
+    ax2 = fig.add_subplot(323)
+    ax2.imshow(img_real_majority, norm=matplotlib.colors.LogNorm(), cmap='magma')
+    ax2.set_title(f'Majority Foreground, # = {len(real_majority)}')
+    ax2.axis('off')
+    ax3 = fig.add_subplot(324)
+    ax3.imshow(img_fake_majority, norm=matplotlib.colors.LogNorm(), cmap='magma')
+    ax3.set_title(f'Majority Background, # = {len(fake_majority)}')
+    ax3.axis('off')
+    
+    ax4 = fig.add_subplot(325)
+    ax4.imshow(img_real, norm=matplotlib.colors.LogNorm(), cmap='magma')
+    ax4.set_title(f'Foreground, # = {len(real)}')
+    ax4.axis('off')
+    ax5 = fig.add_subplot(326)
+    ax5.imshow(img_fake, norm=matplotlib.colors.LogNorm(), cmap='magma')
+    ax5.set_title(f'Background, # = {len(fake)}')
+    ax5.axis('off')
+    plt.show()
+    
+    
+    # now dark
+    middle_x = np.mean(dark['x'].values)
+    middle_y = np.mean(dark['y'].values)
+    print('length of bright before', len(dark))
+    #dark = dark[np.sqrt((dark['x'] - middle_x)**2 + (dark['y'] - middle_y)**2) < 40**2]
+    print('length after cutout', len(dark))
+    
+    
+    # do bright first
+    if model.normalizer == None:
+        tensor_input = torch.from_numpy(dark[model.feature_names].to_numpy())
+    else:
+       
+        tensor_input = torch.from_numpy(
+            model.normalizer.transform(dark[model.feature_names]))
+    
+    # make predictions for all of these
+    try:
+        #ys = model.model.predict(tensor_input)
+        ys = model.model.forward(tensor_input)
+    except AttributeError:
+        try:
+            ys = model.forward(tensor_input)
+        except RuntimeError:
+            ys = model.forward(tensor_input.float())
+    ys = torch.sigmoid(ys)
+             
+    y_predicted = ys[:, 0].detach().numpy()
+    # Now divide into things that are classified as background and foreground
+    real_hyper = dark[dark['class stowed'] == 1]
+    fake_hyper = dark[dark['class stowed'] == 0]
+    
+    real_majority = dark[dark['class overall'] > 0.5]
+    fake_majority = dark[dark['class overall'] < 0.5]
+    
+    real = dark[y_predicted > 0.5]
+    fake = dark[y_predicted < 0.5]
+    
+    print('length real', len(real)/len(dark))
+    print('length fake', len(fake)/len(dark))
+    
+    nbins = 50
+    # Make an image
+    img_real_hyper, yedges, xedges = np.histogram2d(real_hyper['y'].values, real_hyper['x'].values, nbins)#, range=extent)
+    img_fake_hyper, yedges, xedges = np.histogram2d(fake_hyper['y'].values, fake_hyper['x'].values, nbins)#, range=extent)
+   
+    img_real_majority, yedges, xedges = np.histogram2d(real_majority['y'].values, real_majority['x'].values, nbins)#, range=extent)
+    img_fake_majority, yedges, xedges = np.histogram2d(fake_majority['y'].values, fake_majority['x'].values, nbins)#, range=extent)
+    
+    img_real, yedges, xedges = np.histogram2d(real['y'].values, real['x'].values, nbins)#, range=extent)
+    img_fake, yedges, xedges = np.histogram2d(fake['y'].values, fake['x'].values, nbins)#, range=extent)
+   
+    
+    fig = plt.figure()
+    ax = fig.add_subplot(321)
+    ax.imshow(img_real_hyper, norm=matplotlib.colors.LogNorm(), cmap='magma')
+    ax.set_title(f'Stowed Foreground, # = {len(real_hyper)}')
+    ax.axis('off')
+    ax1 = fig.add_subplot(322)
+    ax1.imshow(img_fake_hyper, norm=matplotlib.colors.LogNorm(), cmap='magma')
+    ax1.set_title(f'Stowed Background, # = {len(fake_hyper)}')
+    ax1.axis('off')
+    
+    ax2 = fig.add_subplot(323)
+    ax2.imshow(img_real_majority, norm=matplotlib.colors.LogNorm(), cmap='magma')
+    ax2.set_title(f'Majority Foreground, # = {len(real_majority)}')
+    ax2.axis('off')
+    ax3 = fig.add_subplot(324)
+    ax3.imshow(img_fake_majority, norm=matplotlib.colors.LogNorm(), cmap='magma')
+    ax3.set_title(f'Majority Background, # = {len(fake_majority)}')
+    ax3.axis('off')
+    
+    ax4 = fig.add_subplot(325)
+    ax4.imshow(img_real, norm=matplotlib.colors.LogNorm(), cmap='magma')
+    ax4.set_title(f'Foreground, # = {len(real)}')
+    ax4.axis('off')
+    ax5 = fig.add_subplot(326)
+    ax5.imshow(img_fake, norm=matplotlib.colors.LogNorm(), cmap='magma')
+    ax5.set_title(f'Background, # = {len(fake)}')
+    ax5.axis('off')
+    plt.show()
+    
+    return bright_frac, len(real)/len(dark)
 
 # So there are two options here:
 # 1) Pull from a new evt1 file (evt1 = True)
@@ -48,8 +222,9 @@ subsample_test = pd.read_csv('../data/mega_dfs/test.csv',sep='\t')
 # Now load in the models
 # It would be awesome to be able to do this in a list
 # 'logistic/majority_hyper_and_energy.sav']
-model_name_list = ['logistic/majority_hyper_and_energy.sav',
-                   'logistic/baseline_hyper_and_energy.sav']
+model_name_list = ['logistic/baseline_hyper_and_energy.sav',
+                   'logistic/majority_hyper_and_energy.sav'
+                   ]
 # 'kNN_hyper_and_energy_and_crs_2class_NN.sav']#kNN_all_2class
 
 
@@ -103,7 +278,7 @@ for name in model_name_list:
             ys = model.forward(tensor_input.float())
     print('ys', ys)
     print('detached', ys[:, 0].detach().numpy())
-    STOP
+    
             
     y_predicted = ys[:, 0].detach().numpy()
     
@@ -130,6 +305,16 @@ for name in model_name_list:
         print('precision', TP / (TP + FP))
         print('recall', TP / (TP + FN))
     
+    
+    # Next, do the other two tests: 
+    # 1) a comparison with bright and dark regions
+    # 2) a radial comparison (for 1505?)
+    
+    # 1) running the bright dark test
+    frac_fg_bright, frac_fg_dark = run_bright_dark_test(subsample_train[subsample_train['id']=='1505'], subsample_train[subsample_train['id']=='hrciD2007-01-01bkgrndN0002.fits'])
+    
+    
+    break
     
     continue
     
