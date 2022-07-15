@@ -50,7 +50,7 @@ from utils_for_knodle import *
 
 
 
-NUM_OUTPUT_CLASSES = 1
+NUM_OUTPUT_CLASSES = 2
 trainer_type = 'majority'
 #'base'
 norm = True
@@ -98,7 +98,6 @@ print('Z = ', rule_matches_z)
 print('T = ', mapping_rules_labels_t)
 print('Y = ZT', np.dot(rule_matches_z,mapping_rules_labels_t))
 
-STOP
 
 
 
