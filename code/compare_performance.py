@@ -100,7 +100,7 @@ def run_bright_dark_test(bright, dark):
     
     nbins = 50
     # Make an image
-    img_real_hyper, yedges, xedges = np.histogram2d(real_hyper['y'].values, real_hyper['x'].values, nbins)#, range=extent)
+    img_real_hyper, _, _ = np.histogram2d(real_hyper['y'].values, real_hyper['x'].values, nbins)#, range=extent)
     img_fake_hyper, yedges, xedges = np.histogram2d(fake_hyper['y'].values, fake_hyper['x'].values, nbins)#, range=extent)
    
     img_real_majority, yedges, xedges = np.histogram2d(real_majority['y'].values, real_majority['x'].values, nbins)#, range=extent)
