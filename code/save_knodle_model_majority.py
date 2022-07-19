@@ -1,7 +1,4 @@
 ###~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-# The baseline models arent working for some reason!!!!
-
 # created 6/30/22
 
 # Creates knodle models and saves them
@@ -28,22 +25,33 @@ import joblib
 import torch
 
 
+from my_knodle_models import TinyModel, MassiveModel, SigmoidModel
+
+from torch.utils.tensorboard import SummaryWriter
 
 #from knodle.trainer.baseline.no_denoising import NoDenoisingTrainer
 #from utils.utils_ML import np_array_to_tensor_dataset
 from torch.optim import SGD
 import sys
 sys.path.append("..")
+from transformers import AdamW
+
+import matplotlib.pyplot as plt
 
 # Import all trainers and configs:
+from knodle.trainer.multi_trainer import MultiTrainer
 from knodle.trainer.trainer import BaseTrainer
-from knodle.trainer import  TrainerConfig
+from knodle.trainer.knn_aggregation.knn import KNNAggregationTrainer
+from knodle.trainer.baseline.majority import MajorityVoteTrainer
+
+from knodle.trainer import AutoTrainer, AutoConfig, TrainerConfig
+from knodle.trainer import MajorityConfig, KNNConfig, SnorkelConfig, SnorkelKNNConfig
 from utils_for_knodle import *
 
 
 
 NUM_OUTPUT_CLASSES = 2
-trainer_type = 'baseline'
+trainer_type = 'majority'
 #'base'
 norm = True
 model_type = 'logistic'
@@ -178,6 +186,31 @@ learning_rate = 0.01
 
 
 
+# default criterion looks to be: 
+# from snorkel.classification import cross_entropy_with_probs
+
+# default loss is SGD
+
+#optimizer=SGD(logreg_model.parameters(), lr = learning_rate)
+#torch.nn.BCEWithLogitsLoss
+
+
+configs = MajorityConfig(criterion = torch.nn.BCEWithLogitsLoss(), 
+    optimizer = SGD, lr = learning_rate, batch_size=32, 
+    epochs=20, output_classes = NUM_OUTPUT_CLASSES)
+
+
+
+trainer = MajorityVoteTrainer(
+    model=logreg_model,
+    mapping_rules_labels_t=mapping_rules_labels_t,
+    model_input_x=model_input_x_tensorset,
+    rule_matches_z=rule_matches_z,
+    trainer_config=configs, 
+)
+
+
+'''
 # This doesn't work:
 custom_model_config = TrainerConfig(criterion = torch.nn.BCEWithLogitsLoss(),
         epochs=35, optimizer=SGD(logreg_model.parameters(), lr=learning_rate)
@@ -190,12 +223,9 @@ trainer = BaseTrainer(
         rule_matches_z=rule_matches_z,
         trainer_config=custom_model_config,
     )
+'''
 
-# Getting an error here: 
-# TypeError: Can't instantiate abstract class BaseTrainer with abstract methods train
 
-trainer.train()
-print('model has been trained')
 
 trainer.input_rules_matches_z = in_rules
 
@@ -208,7 +238,8 @@ make_rules_and_y_plot(in_rules, mapping_rules_labels_t, random_index_list)
 # What we ultimately want to do is train and then save the model itself
 
 
-
+trainer.train()
+print('model has been trained')
 
 
 
