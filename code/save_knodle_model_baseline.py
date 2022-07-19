@@ -63,11 +63,23 @@ subsample_dev = pd.read_csv('../data/mega_dfs/dev.csv',sep='\t')
 subsample_test = pd.read_csv('../data/mega_dfs/test.csv',sep='\t')
 
 
+# gotta switch the 0s and 1s in all of the stowed columns 
+subsample['class stowed'] = subsample['class stowed'].replace(0,100)
+subsample['class stowed'] = subsample['class stowed'].replace(1,0)
+subsample['class stowed'] = subsample['class stowed'].replace(100,1)
 
+subsample_dev['class stowed'] = subsample_dev['class stowed'].replace(0,100)
+subsample_dev['class stowed'] = subsample_dev['class stowed'].replace(1,0)
+subsample_dev['class stowed'] = subsample_dev['class stowed'].replace(100,1)
+
+subsample_test['class stowed'] = subsample_test['class stowed'].replace(0,100)
+subsample_test['class stowed'] = subsample_test['class stowed'].replace(1,0)
+subsample_test['class stowed'] = subsample_test['class stowed'].replace(100,1)
+
+
+
+# I modified these to all throw ones when foreground
 rules = subsample[['class hyper','class steve','class stowed']]
-# Modify the hyperscreen rule to throw a 1 when background
-# so this means everywhere that it throws a 0.5 should be a 1 and -0.5 should be a 0
-print(rules)
 
 
 rule_matches_z = rules.to_numpy()
@@ -90,13 +102,15 @@ in_rules = rule_matches_z
 
 
 
-mapping_rules_labels_t = np.array([[1/3.],[1/3.],[1/3.]])
+mapping_rules_labels_t = np.array([[0., 1.],[0., 1.],[1., 0.]])
 print('shape of mapping rules to labels', np.shape(mapping_rules_labels_t))
 
 # Try actually multiplying these together
-print('Z = ', rule_matches_z)
-print('T = ', mapping_rules_labels_t)
+print('Z = ', rule_matches_z, np.shape(rule_matches_z))
+print('T = ', mapping_rules_labels_t, np.shape(mapping_rules_labels_t))
 print('Y = ZT', np.dot(rule_matches_z,mapping_rules_labels_t))
+
+
 
 
 
