@@ -7,7 +7,7 @@ This repo has multiple
 
 ## Installing the ciao_knodle environment
 
-Before running any of the notebooks or downloading event files, you must have ciao-4.13 installed as an anaconda environment. The EVE package also requires hyperscreen, caldb, marx as well as certain pip-installed modules from knodle. I therefore created one combined environment named ciao_knodle. It can be installed using the following line with the environment.yml file in this repo (environment_ciao_plus_knodle.yml):
+Before running any of the notebooks or downloading event files, you must have ciao-4.13 (the Chandra Interactive Analysis of Operations software package) installed as an anaconda environment. The EVE package also requires hyperscreen, caldb, marx as well as certain pip-installed modules from knodle. I therefore created one combined environment named ciao_knodle. It can be installed using the following line with the environment.yml file in this repo (environment_ciao_plus_knodle.yml):
 
 ```
 conda env create -f environment_ciao_plus_knodle.yml
@@ -50,3 +50,13 @@ For more information, you can look up observations here: https://cda.harvard.edu
 When you install ciao, the stowed background files are already downloaded! They can be found at $CALDB/data/chandra/hrc/bkgrnd/. <-- For some reason this doesn't register for me.
 
 More details can be found here about how to determine the stowed background file that corresponds to a given observation: https://cxc.harvard.edu/ciao/threads/hrci_bg_events/
+
+## Download knodle
+
+knodle (Knowledge-supervised deep learning) is a framework for weak supervision with neural networks: https://github.com/knodle/knodle 
+
+In order to run the code in EVE, it is necessary that you clone knodle from its repo and add the path to PYTHONPATH:
+
+```
+git clone https://github.com/knodle/knodle.git
+```
