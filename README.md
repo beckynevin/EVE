@@ -1,25 +1,26 @@
 ### EVE
 <img src="EVE_logo.png">
 
-## Installing CIAO, the Chandra Interactive Analysis of Operations software package
+## Organization of this repo
 
-Before running any of the notebooks or downloading event files, you must have ciao-4.13 installed as an anaconda environment.
+This repo has multiple
 
-Full directions for installing ciao and caldb can be found here: https://cxc.cfa.harvard.edu/ciao/download/index.html
+## Installing the ciao_knodle environment
+
+Before running any of the notebooks or downloading event files, you must have ciao-4.13 installed as an anaconda environment. The EVE package also requires hyperscreen, caldb, marx as well as certain pip-installed modules from knodle. I therefore created one combined environment named ciao_knodle. It can be installed using the following line with the environment.yml file in this repo (environment_ciao_plus_knodle.yml):
+
+```
+conda env create -f environment_ciao_plus_knodle.yml
+```
+^This will create a new environment where the name is given by the first line of the environment.yml file. 
+
+Full separate directions for installing ciao and caldb can be found here: https://cxc.cfa.harvard.edu/ciao/download/index.html
 
 And specific instructions for installing ciao with conda can be found here: https://cxc.cfa.harvard.edu/ciao/threads/ciao_install_conda/
 
-More specifically, this line should do it:
+To activate your new environment:
 ```
-conda create -n ciao-4.13 \
-  -c https://cxc.cfa.harvard.edu/conda/ciao \
-  ciao sherpa ds9 ciao-contrib caldb marx
-```
-where caldb is important because it enables you to use background files (as opposed to caldb_main)
-
-And then load up the environment:
-```
-source activate ciao-4.13
+source activate ciao_knodle
 ```
 
 It is highly encouraged to run the smoke tests to make sure everything is installed correctly.
@@ -29,11 +30,6 @@ If you plan to run any of the notebooks in the notebook folder also add:
 conda install jupyter notebook
 ```
 
-There's a way better way to do this using the environment.yml file through conda:
-```
-conda env create -f environment.yml
-```
-^This will create a new environment where the name is given by the first line of the environment.yml file. I still need to test if I can successfully do this while also correctly installing all of the cxc software above. 
 
 ## Download event files
 To obtain the event files use this ciao command, which drops everything into a folder named by obsid in the current directory:

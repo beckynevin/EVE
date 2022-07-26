@@ -1,0 +1,20 @@
+name: ciao_knodle
+channels:
+  - https://cxc.cfa.harvard.edu/conda/ciao
+  - conda-forge
+dependencies:
+  - ciao
+  - sherpa
+  - ciao-contrib
+  - caldb_main
+  - marx
+  - pip
+  - pip:
+    - hyperscreen
+    - scipy
+    - pandas
+    - joblib
+    - seaborn
+    - sklearn
+    - astropy
+    - minio
