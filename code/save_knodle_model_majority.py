@@ -3,7 +3,7 @@
 
 # Creates knodle models and saves them
 
-# This one focuses on no-denoising + logits
+# This one focuses on majority + logits
 
 # Requires knodle conda environment to run
 # or (better yet) ciao_knodle environment
@@ -17,7 +17,7 @@
 
 
 from knodle.model.logistic_regression_model import LogisticRegressionModel
-
+from sklearn import preprocessing
 import random
 import pandas as pd
 import numpy as np
@@ -128,29 +128,14 @@ model_input_x_array = subsample[feature_list]#.to_numpy()
 
 if norm:
     # Normalize the input x array:
-    from sklearn import preprocessing
+    
     # for normalizer():
     # l1, l2, max don't really make much of a difference
     # still getting super small #s when normalized
     normalizer = preprocessing.StandardScaler()#norm='l1')
     normalized_train_X = normalizer.fit_transform(model_input_x_array)
     
-    '''
-    plt.clf()
-    fig = plt.figure()
-    ax = fig.add_subplot(121)
-    ax.hist(model_input_x_array['pha'].values, color='#EC0868')
-    ax.set_xlabel('pha pre norm')
 
-    model_input_x_array = normalizer.transform(model_input_x_array)
-
-    ax1 = fig.add_subplot(122)
-    ax1.hist(model_input_x_array[:,0], color='#EC0868')
-    ax1.set_xlabel('after norm')
-    plt.show()
-
-    print('after normalized', model_input_x_array, np.shape(model_input_x_array))
-    '''
 
     model_input_x_array = normalizer.transform(model_input_x_array)
 
@@ -196,8 +181,8 @@ learning_rate = 0.01
 
 
 configs = MajorityConfig(criterion = torch.nn.BCEWithLogitsLoss(), 
-    optimizer = SGD, lr = learning_rate, batch_size=32, 
-    epochs=20, output_classes = NUM_OUTPUT_CLASSES)
+    optimizer = SGD, lr = learning_rate, batch_size=64, 
+    epochs=50, output_classes = NUM_OUTPUT_CLASSES)
 
 
 
@@ -405,17 +390,21 @@ y_test_steve = y_test_steve.view(y_test_steve.shape[0],1)
 y_test_stowed = np_array_to_tensor(subsample_test['class stowed'].values).float()
 y_test_stowed = y_test_stowed.view(y_test_stowed.shape[0],1)
 
+y_predicted = torch.sigmoid(trainer.model(model_input_x_test_tensor))
+
+
+
 # from my other code:
-acc = y_predicted.round().eq(y_test_hyper).sum() / float(y_test_hyper.shape[0])
+acc = y_predicted[:,1].round().eq(y_test_hyper).sum() / float(y_test_hyper.shape[0])
 print('test accuracy hyper', acc)
 
-acc = y_predicted.round().eq(y_test_steve).sum() / float(y_test_steve.shape[0])
+acc = y_predicted[:,1].round().eq(y_test_steve).sum() / float(y_test_steve.shape[0])
 print('test accuracy steve', acc)
 
-acc = y_predicted.round().eq(y_test_stowed).sum() / float(y_test_stowed.shape[0])
+acc = y_predicted[:,1].round().eq(y_test_stowed).sum() / float(y_test_stowed.shape[0])
 print('test accuracy stowed', acc)
 
 
-filename = '../models/logistic_one_logit/majority_'+str(predictors)+'.sav'
+filename = '../models/logistic/majority_'+str(predictors)+'.sav'
 joblib.dump(trainer, filename)
 print('saved model')
