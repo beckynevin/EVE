@@ -3,7 +3,7 @@
 # Compare the performance of various models
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-from pickle import STOP
+import random
 import torch
 import seaborn as sns
 import joblib
@@ -16,6 +16,417 @@ import pandas as pd
 import sys
 sys.path.append("..")
 from utils_for_knodle import np_array_to_tensor
+from utils_for_knodle import make_double_rules_and_double_y_plot
+
+def how_does_hyperscreen_do(df):
+    print('fraction agree with steve', len(df[df['before_hyper'] == df['before_steve']])/len(df))
+    print('fraction agree with stowed', len(df[df['before_hyper'] == df['before_stowed']])/len(df))
+    
+    STOP
+
+def rule_patterns(df):
+    # There's gotta be a cool way to go through and get some fun patterns out of this
+    # What would I want to know?
+    # Are there some combos of rules that are most likely to change?
+    # Are there some rules that never change
+    # ^ Here I'm talking about combinations of the three
+    print('~~~~~~~~~~~ ^ ^ ~~~~~~~~~~~~~~~~~~~~')
+    print('~~~~~~~~~~~ " " ~~~~~~~~~~~~~~~~~~~~')
+    print('~~~~~~~~~~~  U ~~~~~~~~~~~~~~~~~~~~')
+    print('total length df', len(df))
+    print(df[['before_hyper','after_hyper','before_steve','after_steve','before_stowed','after_stowed']].value_counts())
+    
+    
+    # First look for rows where nothing changes:
+    no_changes = df[(df['before_hyper'] == df['after_hyper']) & 
+                    (df['before_steve'] == df['after_steve']) & 
+                    (df['before_stowed'] == df['after_stowed'])]
+    
+    
+    print('no changes', len(no_changes))
+    # Now get counts from this no_changes thing
+    print(no_changes['before_hyper'].value_counts())
+    print(no_changes['before_steve'].value_counts())
+    print(no_changes['before_stowed'].value_counts())
+    print(no_changes[['before_hyper','before_steve','before_stowed']].value_counts())
+    
+    print(df[['before_hyper','before_steve','before_stowed','after_hyper','after_steve','after_stowed']].value_counts())
+    plt.clf()
+    df[['before_hyper','before_steve','before_stowed','after_hyper','after_steve','after_stowed']].value_counts().plot(kind='barh', figsize=(7, 8))#, rot=45)
+    plt.show()
+    
+    changed_to_zeros_df = df[((df['before_hyper'] == 1) & (df['after_hyper'] == 0)) | 
+                    ((df['before_steve'] == 1) & (df['after_steve'] == 0)) | 
+                    ((df['before_stowed'] == 1) & (df['after_stowed'] == 0))]
+    changed_to_zeros = len(changed_to_zeros_df)
+    changed_to_ones_df = df[((df['before_hyper'] == 0) & (df['after_hyper'] == 1)) | 
+                    ((df['before_steve'] == 0) & (df['after_steve'] == 1)) | 
+                    ((df['before_stowed'] == 0) & (df['after_stowed'] == 1))]
+    changed_to_ones = len(changed_to_ones_df)
+    
+    
+    
+    # Make plots of some of these different combos:
+    selection = df[(df['before_hyper'] == 1.0) & (df['after_hyper'] == 1.0) 
+                   & (df['before_steve'] == 1.0) & (df['after_steve'] == 1.0)
+                   & (df['before_stowed'] == 0.0) & (df['after_stowed'] == 1.0)]
+    #rules_bf, rules_af, mapping, y_noisy, indices
+    make_diagnostic_plots(df, changed_to_zeros_df, 'changed to zeros (bg)', all_plots = True)
+    make_diagnostic_plots(df, changed_to_ones_df, 'changed to ones (fg)', all_plots = True)
+    make_diagnostic_plots(df, selection, 'changed to fg in stowed', all_plots = True)
+    
+    
+    
+    
+    
+    hyper_change = df[df['before_hyper'] != df['after_hyper']]
+    steve_change = df[df['before_steve'] != df['after_steve']]
+    stowed_change = df[df['before_stowed'] != df['after_stowed']]
+    
+    print('hyper changed', len(hyper_change))
+    print('steve changed', len(steve_change))
+    print('stowed changed', len(stowed_change))
+    
+    hyper_and_steve_change = df[(df['before_hyper'] != df['after_hyper']) & (df['before_steve'] != df['after_steve']) ]
+    print('hyper and steve changed', len(hyper_and_steve_change))
+    hyper_and_steve_change_stowed_stays_same = df[(df['before_hyper'] != df['after_hyper']) & (df['before_steve'] != df['after_steve']) & (df['before_stowed'] == df['after_stowed'])]
+    print('hyper and steve changed stowed stays the same', len(hyper_and_steve_change_stowed_stays_same))
+    
+    stowed_change_hyper_and_steve_stays_same = df[(df['before_hyper'] == df['after_hyper']) & (df['before_steve'] == df['after_steve']) & (df['before_stowed'] != df['after_stowed'])]
+    print('stowed changed but hyper and steve stayed the same', len(stowed_change_hyper_and_steve_stays_same))
+    
+    return changed_to_zeros, changed_to_ones
+    
+def make_diagnostic_plots(df_all, df, title, all_plots = True):
+    if all_plots:
+        xs_list = ['fp_u','fp_v','pha']
+        ys_list = ['fb_u','fb_v','sumamps']
+        fig = plt.figure(figsize = (4,4))
+        #for x, y in zip(xs_list, ys_list):
+
+            
+            
+        ax = fig.add_subplot(131)
+        ax.scatter(df_all[xs_list[0]].values, df_all[ys_list[0]].values, label=f'all ({len(df_all)})', s=0.3, color='#14110F')
+        ax.scatter(df[xs_list[0]].values, df[ys_list[0]].values, label=f'selected ({len(df)})', s=0.3, color='#FE5F55')
+        ax.set_xlabel(xs_list[0])
+        ax.set_ylabel(ys_list[0])
+        plt.legend()
+        
+        ax1 = fig.add_subplot(132)
+        ax1.scatter(df_all[xs_list[1]].values, df_all[ys_list[1]].values, label=f'all ({len(df_all)})', s=0.3, color='#14110F')
+        ax1.scatter(df[xs_list[1]].values, df[ys_list[1]].values, label=f'selected ({len(df)})', s=0.3, color='#FE5F55')
+        ax1.set_xlabel(xs_list[1])
+        ax1.set_ylabel(ys_list[1])
+        ax1.set_title(title)
+        
+        ax2 = fig.add_subplot(133)
+        ax2.scatter(df_all[xs_list[2]].values, df_all[ys_list[2]].values, label=f'all ({len(df_all)})', s=0.3, color='#14110F')
+        ax2.scatter(df[xs_list[2]].values, df[ys_list[2]].values, label=f'selected ({len(df)})', s=0.3, color='#FE5F55')
+        ax2.set_xlabel(xs_list[2])
+        ax2.set_ylabel(ys_list[2])
+        
+        
+        plt.show()
+    
+
+    # Good that its shorter after
+    nbins = 50
+    # Make an image
+    img_all, yedges, xedges = np.histogram2d(df_all['y'].values, df_all['x'].values, nbins)#, range=extent)
+    img_selected, yedges, xedges = np.histogram2d(df['y'].values, df['x'].values, nbins)#, range=extent)
+
+    
+
+    plt.clf()
+    fig = plt.figure(figsize = (8,8))
+    ax = fig.add_subplot(121)
+    
+    im = ax.imshow(abs(img_all), norm=matplotlib.colors.LogNorm(), cmap='magma')
+    ax.set_title(f'all ({len(df_all)})')
+    plt.colorbar(im, fraction=0.046)
+    
+    
+
+    ax1 = fig.add_subplot(122)
+    im1 = ax1.imshow(abs(img_selected), norm=matplotlib.colors.LogNorm(), cmap='magma')
+    ax1.set_title(f'selected ({len(df)})')
+    try:
+        plt.colorbar(im1, fraction=0.046)
+    except ValueError:
+        print('no colorbar')
+    plt.show()
+
+def rule_compare(model, df, in_rules, out_rules, ys, plot = True):
+    
+    
+    # Okay time to go one column at a time
+    df['before_hyper'] = in_rules[:,0]
+    df['after_hyper'] = out_rules[:,0]
+
+    df['before_steve'] = in_rules[:,1]
+    df['after_steve'] = out_rules[:,1]
+
+    df['before_stowed'] = in_rules[:,2]
+    df['after_stowed'] = out_rules[:,2]
+    
+    
+
+    try: #selecting out by ID
+        df['id'] = model.ids
+        print(model.ids)
+
+        #df = df[df['id'] == '1505']#hrciD2010-01-01bkgrndN0002.fits
+    except:
+        print('cannot select by ID')
+
+    #rules_bf, rules_af, mapping, y_noisy, indices
+    print(df)
+    random_index_list = random.sample(range(100), 30)
+    print('random_index_lsit', random_index_list)
+    make_double_rules_and_double_y_plot(df[['before_hyper','before_steve','before_stowed']].to_numpy(),
+                                        df[['after_hyper','after_steve','after_stowed']].to_numpy(), 
+                                        [[0,1],[0,1],[1,0]], ys.detach().numpy(), random_index_list)
+    frac_same = len(df[(df['before_hyper'] == df['after_hyper']) & 
+                                 (df['before_steve'] == df['after_steve']) & 
+                                 (df['before_stowed'] == df['after_stowed'])])/len(df)
+    frac_diff = len(df[(df['before_hyper'] != df['after_hyper']) | 
+                                 (df['before_steve'] != df['after_steve']) | 
+                                 (df['before_stowed'] != df['after_stowed'])])/len(df)
+    frac_hyper_changed = len(df[df['before_hyper'] != df['after_hyper']])/len(df)
+    frac_steve_changed = len(df[df['before_steve'] != df['after_steve']])/len(df)
+    frac_stowed_changed = len(df[df['before_stowed'] != df['after_stowed']])/len(df)
+    
+    
+    
+    changed_to_zeros, changed_to_ones = rule_patterns(df)#[['before_hyper','before_steve','before_stowed','after_hyper','after_steve','after_stowed']])
+
+
+    
+    
+    print('~~~ Stowed ~~~~')
+    print('length of real before', len(df[df['before_stowed']==1]))
+    print('length of real after', len(df[df['after_stowed']==1]))
+   
+    print('~~~ Hyper ~~~~')
+    print('length of real before', len(df[df['before_hyper']==1]))
+    print('length of real after', len(df[df['after_hyper']==1]))
+    
+
+    print('~~~ Steve ~~~~')
+    print('length of real before', len(df[df['before_steve']==1]))
+    print('length of real after', len(df[df['after_steve']==1]))
+
+    print('~~~ Stowed ~~~~')
+    print('length of fake before', len(df[df['before_stowed']==0]))
+    print('length of fake after', len(df[df['after_stowed']==0]))
+
+    print('~~~ Hyper ~~~~')
+    print('length of fake before', len(df[df['before_hyper']==0]))
+    print('length of fake after', len(df[df['after_hyper']==0]))
+
+    print('~~~ Steve ~~~~')
+    print('length of fake before', len(df[df['before_steve']==0]))
+    print('length of fake after', len(df[df['after_steve']==0]))
+
+    print('~~~~~~~~~~~~~~~~~~~~~~')
+    print('stats on what changed')
+    print('fraction of stowed that change', len(df[((df['before_stowed']==0) & (df['after_stowed']==1)) | ((df['before_stowed']==1) & (df['after_stowed']==0))])/len(df))
+    print('fraction of hyper that change', len(df[((df['before_hyper']==0) & (df['after_hyper']==1)) | ((df['before_hyper']==1) & (df['after_hyper']==0))])/len(df))
+    print('fraction of steve that change', len(df[((df['before_steve']==0) & (df['after_steve']==1)) | ((df['before_steve']==1) & (df['after_steve']==0))])/len(df))
+
+    if plot:
+    
+        # Make some comparison hyperbola figs
+
+        xs_list = ['fp_u','fp_v','pha']
+        ys_list = ['fb_u','fb_v','sumamps']
+        for x, y in zip(xs_list, ys_list):
+
+            
+            fig = plt.figure(figsize = (10,4))
+            ax = fig.add_subplot(131)
+            ax.scatter(df[df['before_steve']==0][x].values, df[df['before_steve']==0][y].values, label='background', s=0.3, color='#14110F')
+            ax.scatter(df[df['before_steve']==1][x].values, df[df['before_steve']==1][y].values, label='foreground', s=0.3, color='#FE5F55')
+            ax.set_title('hyperbola before knodle')
+            plt.legend()
+
+            ax1 = fig.add_subplot(132)
+            ax1.scatter(df[df['after_steve']==0][x].values, df[df['after_steve']==0][y].values, label='background', s=0.3, color='#14110F')
+            ax1.scatter(df[df['after_steve']==1][x].values, df[df['after_steve']==1][y].values, label='foreground', s=0.3, color='#FE5F55')
+            ax1.set_title('after knodle (total # = '+str(len(df))+')')
+            plt.legend()
+
+            ax2 = fig.add_subplot(133)
+            ax2.scatter(df[(df['after_steve']==0) & (df['before_steve']==1)][x].values, df[(df['after_steve']==0) & (df['before_steve']==1)][y].values, 
+                label='changed to background (# = '+str(len(df[(df['after_steve']==0) & (df['before_steve']==1)][x].values))+')', s=0.3, color='#14110F')
+            ax2.scatter(df[(df['after_steve']==1) & (df['before_steve']==0)][x].values, df[(df['after_steve']==1) & (df['before_steve']==0)][y].values, 
+                label='changed to foreground (# = '+str(len(df[(df['after_steve']==1) & (df['before_steve']==0)][x].values))+')', s=0.3, color='#FE5F55')
+            ax2.set_title('what changed?')
+            plt.legend()
+
+
+            plt.show()
+
+            
+
+            
+            fig = plt.figure(figsize = (10,4))
+            ax2 = fig.add_subplot(131)
+            ax2.scatter(df[df['before_hyper']==0][x].values, df[df['before_hyper']==0][y].values, label='background', s=0.3, color='#14110F')
+            ax2.scatter(df[df['before_hyper']==1][x].values, df[df['before_hyper']==1][y].values, label='foreground', s=0.3, color='#FE5F55')
+            ax2.set_title('hyperscreen before knodle')
+            plt.legend()
+
+            ax3 = fig.add_subplot(132)
+            ax3.scatter(df[df['after_hyper']==0][x].values, df[df['after_hyper']==0][y].values, label='background', s=0.3, color='#14110F')
+            ax3.scatter(df[df['after_hyper']==1][x].values, df[df['after_hyper']==1][y].values, label='foreground', s=0.3, color='#FE5F55')
+            ax3.set_title('after knodle (total # = '+str(len(df))+')')
+            plt.legend()
+
+            ax4 = fig.add_subplot(133)
+            ax4.scatter(df[(df['after_hyper']==0) & (df['before_hyper']==1)][x].values, df[(df['after_hyper']==0) & (df['before_hyper']==1)][y].values, 
+                label='changed to background (# = '+str(len(df[(df['after_hyper']==0) & (df['before_hyper']==1)][y].values))+')', s=0.3, color='#14110F')
+            ax4.scatter(df[(df['after_hyper']==1) & (df['before_hyper']==0)][x].values, df[(df['after_hyper']==1) & (df['before_hyper']==0)][y].values, 
+                label='changed to foreground (# = '+str(len(df[(df['after_hyper']==1) & (df['before_hyper']==0)][y].values))+')', s=0.3, color='#FE5F55')
+            ax4.set_title('what changed?')
+            plt.legend()
+
+            plt.show()
+
+            
+            fig = plt.figure(figsize = (10,4))
+            ax2 = fig.add_subplot(131)
+            ax2.scatter(df[df['before_stowed']==0][x].values, df[df['before_stowed']==0][y].values, label='background', s=0.3, color='#14110F')
+            ax2.scatter(df[df['before_stowed']==1][x].values, df[df['before_stowed']==1][y].values, label='foreground', s=0.3, color='#FE5F55')
+            ax2.set_title('stowed before knodle')
+            plt.legend()
+
+            ax3 = fig.add_subplot(132)
+            ax3.scatter(df[df['after_stowed']==0][x].values, df[df['after_stowed']==0][y].values, label='background', s=0.3, color='#14110F')
+            ax3.scatter(df[df['after_stowed']==1][x].values, df[df['after_stowed']==1][y].values, label='foreground', s=0.3, color='#FE5F55')
+            ax3.set_title('after knodle (total # = '+str(len(df))+')')
+            plt.legend()
+
+            ax4 = fig.add_subplot(133)
+            ax4.scatter(df[(df['after_stowed']==0) & (df['before_stowed']==1)][x].values, df[(df['after_stowed']==0) & (df['before_stowed']==1)][y].values, 
+                label='changed to background (# = '+str(len(df[(df['after_stowed']==0) & (df['before_stowed']==1)][y].values))+')', s=0.3, color='#14110F')
+            ax4.scatter(df[(df['after_stowed']==1) & (df['before_stowed']==0)][x].values, df[(df['after_stowed']==1) & (df['before_stowed']==0)][y].values, 
+                label='changed to foreground (# = '+str(len(df[(df['after_stowed']==1) & (df['before_stowed']==0)][y].values))+')', s=0.3, color='#FE5F55')
+            ax4.set_title('what changed?')
+            plt.legend()
+
+            plt.show()
+        
+
+        # Good that its shorter after
+        nbins = 50
+        # Make an image
+        img_stowed_bg_before, yedges, xedges = np.histogram2d(df[df['before_stowed']==0]['y'].values, df[df['before_stowed']==0]['x'].values, nbins)#, range=extent)
+        img_stowed_bg_after, yedges, xedges = np.histogram2d(df[df['after_stowed']==0]['y'].values, df[df['after_stowed']==0]['x'].values, nbins)#, range=extent)
+
+        img_stowed_fg_before, yedges, xedges = np.histogram2d(df[df['before_stowed']==1]['y'].values, df[df['before_stowed']==1]['x'].values, nbins)#, range=extent)
+        img_stowed_fg_after, yedges, xedges = np.histogram2d(df[df['after_stowed']==1]['y'].values, df[df['after_stowed']==1]['x'].values, nbins)#, range=extent)
+
+
+        plt.clf()
+        fig = plt.figure(figsize = (8,8))
+        ax = fig.add_subplot(221)
+        try:
+            im = ax.imshow(abs(img_stowed_fg_before), norm=matplotlib.colors.LogNorm())
+            ax.set_title('Foreground stowed before')
+            plt.colorbar(im)
+        except:
+            im = ax.imshow(abs(img_stowed_fg_before))
+            ax.set_title('Foreground stowed before')
+            plt.colorbar(im)
+        
+
+        ax1 = fig.add_subplot(222)
+        im1 = ax1.imshow(abs(img_stowed_fg_after), norm=matplotlib.colors.LogNorm())
+        ax1.set_title('Foreground stowed after')
+        plt.colorbar(im1)
+
+        ax2 = fig.add_subplot(223)
+        try:
+            im2 = ax2.imshow(abs(img_stowed_bg_before), norm=matplotlib.colors.LogNorm())
+            ax2.set_title('Background stowed before')
+            plt.colorbar(im2)
+        except:
+            im2 = ax2.imshow(abs(img_stowed_bg_before))
+            ax2.set_title('Background stowed before')
+            plt.colorbar(im2)
+        
+
+        ax3 = fig.add_subplot(224)
+        im3 = ax3.imshow(abs(img_stowed_bg_after), norm=matplotlib.colors.LogNorm())
+        ax3.set_title('Background stowed after')
+        plt.colorbar(im3)
+
+        plt.show()
+
+        img_hyper_bg_before, yedges, xedges = np.histogram2d(df[df['before_hyper']==0]['y'].values, df[df['before_hyper']==0]['x'].values, nbins)#, range=extent)
+        img_hyper_bg_after, yedges, xedges = np.histogram2d(df[df['after_hyper']==0]['y'].values, df[df['after_hyper']==0]['x'].values, nbins)#, range=extent)
+
+        img_hyper_fg_before, yedges, xedges = np.histogram2d(df[df['before_hyper']==1]['y'].values, df[df['before_hyper']==1]['x'].values, nbins)#, range=extent)
+        img_hyper_fg_after, yedges, xedges = np.histogram2d(df[df['after_hyper']==1]['y'].values, df[df['after_hyper']==1]['x'].values, nbins)#, range=extent)
+
+
+        plt.clf()
+        fig = plt.figure()
+        ax = fig.add_subplot(221)
+        im = ax.imshow(abs(img_hyper_fg_before), norm=matplotlib.colors.LogNorm())
+        ax.set_title('Foreground hyper before')
+        plt.colorbar(im)
+
+        ax1 = fig.add_subplot(222)
+        im1 = ax1.imshow(abs(img_hyper_fg_after), norm=matplotlib.colors.LogNorm())
+        ax1.set_title('Foreground hyper after')
+        plt.colorbar(im1)
+
+        ax2 = fig.add_subplot(223)
+        im2 = ax2.imshow(abs(img_hyper_bg_before), norm=matplotlib.colors.LogNorm())
+        ax2.set_title('Background hyper before')
+        plt.colorbar(im2)
+
+        ax3 = fig.add_subplot(224)
+        im3 = ax3.imshow(abs(img_hyper_bg_after), norm=matplotlib.colors.LogNorm())
+        ax3.set_title('Background hyper after')
+        plt.colorbar(im3)
+
+        plt.show()
+
+        img_steve_bg_before, yedges, xedges = np.histogram2d(df[df['before_steve']==0]['y'].values, df[df['before_steve']==0]['x'].values, nbins)#, range=extent)
+        img_steve_bg_after, yedges, xedges = np.histogram2d(df[df['after_steve']==0]['y'].values, df[df['after_steve']==0]['x'].values, nbins)#, range=extent)
+
+        img_steve_fg_before, yedges, xedges = np.histogram2d(df[df['before_steve']==1]['y'].values, df[df['before_steve']==1]['x'].values, nbins)#, range=extent)
+        img_steve_fg_after, yedges, xedges = np.histogram2d(df[df['after_steve']==1]['y'].values, df[df['after_steve']==1]['x'].values, nbins)#, range=extent)
+
+
+        plt.clf()
+        fig = plt.figure()
+        ax = fig.add_subplot(221)
+        im = ax.imshow(abs(img_steve_fg_before), norm=matplotlib.colors.LogNorm())
+        ax.set_title('Foreground steve before')
+        plt.colorbar(im)
+
+        ax1 = fig.add_subplot(222)
+        im1 = ax1.imshow(abs(img_steve_fg_after), norm=matplotlib.colors.LogNorm())
+        ax1.set_title('Foreground steve after')
+        plt.colorbar(im1)
+
+        ax2 = fig.add_subplot(223)
+        im2 = ax2.imshow(abs(img_steve_bg_before), norm=matplotlib.colors.LogNorm())
+        ax2.set_title('Background steve before')
+        plt.colorbar(im2)
+
+        ax3 = fig.add_subplot(224)
+        im3 = ax3.imshow(abs(img_steve_bg_after), norm=matplotlib.colors.LogNorm())
+        ax3.set_title('Background steve after')
+        plt.colorbar(im3)
+
+        plt.show()
+    return frac_same, frac_diff, frac_hyper_changed, frac_steve_changed, frac_stowed_changed, changed_to_zeros, changed_to_ones
 
 def calc_confusion(y_predicted_array, y_test_array):
     #print('tp list', [1 if (y_predicted_array[i] == 1 and y_test_array[i] == 1) else 0 for i, x in enumerate(y_test_array)])
@@ -43,48 +454,57 @@ def predict_fxn(model, subsample_test, sigmoid = True):
         except RuntimeError:
             ys = model.forward(tensor_input.float())
     if sigmoid:
-        ys = torch.sigmoid(ys)      
-    y_predicted = ys[:, 0].detach().numpy()
+        ys = torch.sigmoid(ys)    
+    try:   
+        y_predicted = ys[:, 1].detach().numpy()   
+    except IndexError:
+        y_predicted = ys[:, 0].detach().numpy()
     return y_predicted, ys
 
-def run_bright_dark_test(bright, dark):
+def run_bright_dark_test(model, name, bright, dark):
     # cut down bright
     middle_x = np.mean(bright['x'].values)
     middle_y = np.mean(bright['y'].values)
-    print(middle_x, middle_y)
-    print('length of bright before', len(bright))
+    
     bright = bright[np.sqrt((bright['x'] - middle_x)**2 + (bright['y'] - middle_y)**2) < 40**2]
-    print('length after cutout', len(bright))
     
-    
-    
-    # do bright first
-    if model.normalizer == None:
-        tensor_input = torch.from_numpy(bright[model.feature_names].to_numpy())
+    if model == 'hyperscreen':
+        y_predicted = bright['class hyper']
     else:
-       
-        tensor_input = torch.from_numpy(
-            model.normalizer.transform(bright[model.feature_names]))
-    
-    # make predictions for all of these
-    try:
-        #ys = model.model.predict(tensor_input)
-        ys = model.model.forward(tensor_input)
-    except AttributeError:
+        # do bright first
+        if model.normalizer == None:
+            tensor_input = torch.from_numpy(bright[model.feature_names].to_numpy())
+        else:
+        
+            tensor_input = torch.from_numpy(
+                model.normalizer.transform(bright[model.feature_names]))
+        
+        # make predictions for all of these
         try:
-            ys = model.forward(tensor_input)
-        except RuntimeError:
-            ys = model.forward(tensor_input.float())
-    ys = torch.sigmoid(ys)
-             
-    y_predicted = ys[:, 0].detach().numpy()
+            #ys = model.model.predict(tensor_input)
+            ys = model.model.forward(tensor_input)
+        except AttributeError:
+            try:
+                ys = model.forward(tensor_input)
+            except RuntimeError:
+                ys = model.forward(tensor_input.float())
+        ys = torch.sigmoid(ys)
+        try:     
+            y_predicted = ys[:, 1].detach().numpy()
+        except IndexError:
+            y_predicted = ys[:, 0].detach().numpy()
     # Now divide into things that are classified as background and foreground
     plt.clf()
     plt.hist(y_predicted, bins = 100)
+    plt.xlabel('y predicted')
     plt.show()
     
     real_hyper = bright[bright['class hyper'] == 1]
     fake_hyper = bright[bright['class hyper'] == 0]
+    real_steve = bright[bright['class steve'] == 1]
+    fake_steve = bright[bright['class steve'] == 0]
+    real_stowed = bright[bright['class stowed'] == 1]
+    fake_stowed = bright[bright['class stowed'] == 0]
     print(bright.columns)
     
     real_majority = bright[bright['class overall'] > 0.5]
@@ -94,14 +514,20 @@ def run_bright_dark_test(bright, dark):
     fake = bright[y_predicted < 0.5]
     
     bright_frac = len(real)/len(bright)
-    
+    print('results for predicted bright')
     print('length real', len(real)/len(bright))
     print('length fake', len(fake)/len(bright))
     
     nbins = 50
     # Make an image
-    img_real_hyper, _, _ = np.histogram2d(real_hyper['y'].values, real_hyper['x'].values, nbins)#, range=extent)
+    img_real_hyper, yedges, xedges = np.histogram2d(real_hyper['y'].values, real_hyper['x'].values, nbins)#, range=extent)
     img_fake_hyper, yedges, xedges = np.histogram2d(fake_hyper['y'].values, fake_hyper['x'].values, nbins)#, range=extent)
+   
+    img_real_steve, yedges, xedges = np.histogram2d(real_steve['y'].values, real_steve['x'].values, nbins)#, range=extent)
+    img_fake_steve, yedges, xedges = np.histogram2d(fake_steve['y'].values, fake_steve['x'].values, nbins)#, range=extent)
+   
+    img_real_stowed, yedges, xedges = np.histogram2d(real_stowed['y'].values, real_stowed['x'].values, nbins)#, range=extent)
+    img_fake_stowed, yedges, xedges = np.histogram2d(fake_stowed['y'].values, fake_stowed['x'].values, nbins)#, range=extent)
    
     img_real_majority, yedges, xedges = np.histogram2d(real_majority['y'].values, real_majority['x'].values, nbins)#, range=extent)
     img_fake_majority, yedges, xedges = np.histogram2d(fake_majority['y'].values, fake_majority['x'].values, nbins)#, range=extent)
@@ -109,67 +535,98 @@ def run_bright_dark_test(bright, dark):
     img_real, yedges, xedges = np.histogram2d(real['y'].values, real['x'].values, nbins)#, range=extent)
     img_fake, yedges, xedges = np.histogram2d(fake['y'].values, fake['x'].values, nbins)#, range=extent)
    
-    fig = plt.figure()
-    ax = fig.add_subplot(321)
-    ax.imshow(img_real_hyper, norm=matplotlib.colors.LogNorm(), cmap='magma')
-    ax.set_title(f'Hyper Foreground, # = {len(real_hyper)}')
-    ax.axis('off')
-    ax1 = fig.add_subplot(322)
-    ax1.imshow(img_fake_hyper, norm=matplotlib.colors.LogNorm(), cmap='magma')
-    ax1.set_title(f'Hyper Background, # = {len(fake_hyper)}')
-    ax1.axis('off')
     
-    ax2 = fig.add_subplot(323)
-    ax2.imshow(img_real_majority, norm=matplotlib.colors.LogNorm(), cmap='magma')
-    ax2.set_title(f'Majority Foreground, # = {len(real_majority)}')
+    fig = plt.figure()
+    '''
+    ax = fig.add_subplot(521)
+    ax.imshow(img_real_majority, norm=matplotlib.colors.LogNorm(), cmap='magma')
+    ax.set_title(f'Majority Foreground, # = {len(real_majority)}')
+    ax.axis('off')
+    ax1 = fig.add_subplot(522)
+    ax1.imshow(img_fake_majority, norm=matplotlib.colors.LogNorm(), cmap='magma')
+    ax1.set_title(f'Majority Background, # = {len(fake_majority)}')
+    ax1.axis('off')
+    '''
+    
+    ax2 = fig.add_subplot(421)
+    ax2.imshow(img_real_hyper, norm=matplotlib.colors.LogNorm(), cmap='magma')
+    ax2.set_title(f'Hyper Foreground, # = {len(real_hyper)}')
     ax2.axis('off')
-    ax3 = fig.add_subplot(324)
-    ax3.imshow(img_fake_majority, norm=matplotlib.colors.LogNorm(), cmap='magma')
-    ax3.set_title(f'Majority Background, # = {len(fake_majority)}')
+    ax3 = fig.add_subplot(422)
+    ax3.imshow(img_fake_hyper, norm=matplotlib.colors.LogNorm(), cmap='magma')
+    ax3.set_title(f'Hyper Background, # = {len(fake_hyper)}')
     ax3.axis('off')
     
-    ax4 = fig.add_subplot(325)
-    ax4.imshow(img_real, norm=matplotlib.colors.LogNorm(), cmap='magma')
-    ax4.set_title(f'Foreground, # = {len(real)}')
+    ax4 = fig.add_subplot(423)
+    ax4.imshow(img_real_steve, norm=matplotlib.colors.LogNorm(), cmap='magma')
+    ax4.set_title(f'Steve Foreground, # = {len(real_steve)}')
     ax4.axis('off')
-    ax5 = fig.add_subplot(326)
-    ax5.imshow(img_fake, norm=matplotlib.colors.LogNorm(), cmap='magma')
-    ax5.set_title(f'Background, # = {len(fake)}')
+    ax5 = fig.add_subplot(424)
+    ax5.imshow(img_fake_steve, norm=matplotlib.colors.LogNorm(), cmap='magma')
+    ax5.set_title(f'Steve Background, # = {len(fake_steve)}')
     ax5.axis('off')
+    
+    ax6 = fig.add_subplot(425)
+    ax6.imshow(img_real_stowed, norm=matplotlib.colors.LogNorm(), cmap='magma')
+    ax6.set_title(f'Stowed Foreground, # = {len(real_stowed)}')
+    ax6.axis('off')
+    ax7 = fig.add_subplot(426)
+    ax7.imshow(img_fake_stowed, norm=matplotlib.colors.LogNorm(), cmap='magma')
+    ax7.set_title(f'Stowed Background, # = {len(fake_stowed)}')
+    ax7.axis('off')
+    
+    ax8 = fig.add_subplot(427)
+    ax8.imshow(img_real, norm=matplotlib.colors.LogNorm(), cmap='magma')
+    ax8.set_title(f'Model Foreground, # = {len(real)}')
+    ax8.axis('off')
+    ax9 = fig.add_subplot(428)
+    ax9.imshow(img_fake, norm=matplotlib.colors.LogNorm(), cmap='magma')
+    ax9.set_title(f'Model Background, # = {len(fake)}')
+    ax9.axis('off')
+    ax8.annotate(f'Model = {name}', xy=(-0.1,-0.1), xycoords='axes fraction')
     plt.show()
     
     
     # now dark
     middle_x = np.mean(dark['x'].values)
     middle_y = np.mean(dark['y'].values)
-    print('length of bright before', len(dark))
     #dark = dark[np.sqrt((dark['x'] - middle_x)**2 + (dark['y'] - middle_y)**2) < 40**2]
-    print('length after cutout', len(dark))
     
-    
-    # do bright first
-    if model.normalizer == None:
-        tensor_input = torch.from_numpy(dark[model.feature_names].to_numpy())
+    # do dark next
+    if model == 'hyperscreen':
+        y_predicted = dark['class hyper']
     else:
-       
-        tensor_input = torch.from_numpy(
-            model.normalizer.transform(dark[model.feature_names]))
     
-    # make predictions for all of these
-    try:
-        #ys = model.model.predict(tensor_input)
-        ys = model.model.forward(tensor_input)
-    except AttributeError:
+        if model.normalizer == None:
+            tensor_input = torch.from_numpy(dark[model.feature_names].to_numpy())
+        else:
+        
+            tensor_input = torch.from_numpy(
+                model.normalizer.transform(dark[model.feature_names]))
+        
+        # make predictions for all of these
         try:
-            ys = model.forward(tensor_input)
-        except RuntimeError:
-            ys = model.forward(tensor_input.float())
-    ys = torch.sigmoid(ys)
-             
-    y_predicted = ys[:, 0].detach().numpy()
+            #ys = model.model.predict(tensor_input)
+            ys = model.model.forward(tensor_input)
+        except AttributeError:
+            try:
+                ys = model.forward(tensor_input)
+            except RuntimeError:
+                ys = model.forward(tensor_input.float())
+        ys = torch.sigmoid(ys)
+        try:
+            y_predicted = ys[:, 1].detach().numpy()
+        except IndexError:
+            y_predicted = ys[:, 0].detach().numpy()
     # Now divide into things that are classified as background and foreground
-    real_hyper = dark[dark['class stowed'] == 1]
-    fake_hyper = dark[dark['class stowed'] == 0]
+    real_stowed = dark[dark['class stowed'] == 1]
+    fake_stowed = dark[dark['class stowed'] == 0]
+    
+    real_hyper = dark[dark['class hyper'] == 1]
+    fake_hyper = dark[dark['class hyper'] == 0]
+    
+    real_steve = dark[dark['class steve'] == 1]
+    fake_steve = dark[dark['class steve'] == 0]
     
     real_majority = dark[dark['class overall'] > 0.5]
     fake_majority = dark[dark['class overall'] < 0.5]
@@ -177,6 +634,7 @@ def run_bright_dark_test(bright, dark):
     real = dark[y_predicted > 0.5]
     fake = dark[y_predicted < 0.5]
     
+    print('results for predicted dark')
     print('length real', len(real)/len(dark))
     print('length fake', len(fake)/len(dark))
     
@@ -185,6 +643,12 @@ def run_bright_dark_test(bright, dark):
     img_real_hyper, yedges, xedges = np.histogram2d(real_hyper['y'].values, real_hyper['x'].values, nbins)#, range=extent)
     img_fake_hyper, yedges, xedges = np.histogram2d(fake_hyper['y'].values, fake_hyper['x'].values, nbins)#, range=extent)
    
+    img_real_steve, yedges, xedges = np.histogram2d(real_steve['y'].values, real_steve['x'].values, nbins)#, range=extent)
+    img_fake_steve, yedges, xedges = np.histogram2d(fake_steve['y'].values, fake_steve['x'].values, nbins)#, range=extent)
+   
+    img_real_stowed, yedges, xedges = np.histogram2d(real_stowed['y'].values, real_stowed['x'].values, nbins)#, range=extent)
+    img_fake_stowed, yedges, xedges = np.histogram2d(fake_stowed['y'].values, fake_stowed['x'].values, nbins)#, range=extent)
+   
     img_real_majority, yedges, xedges = np.histogram2d(real_majority['y'].values, real_majority['x'].values, nbins)#, range=extent)
     img_fake_majority, yedges, xedges = np.histogram2d(fake_majority['y'].values, fake_majority['x'].values, nbins)#, range=extent)
     
@@ -193,37 +657,59 @@ def run_bright_dark_test(bright, dark):
    
     
     fig = plt.figure()
-    ax = fig.add_subplot(321)
-    ax.imshow(img_real_hyper, norm=matplotlib.colors.LogNorm(), cmap='magma')
-    ax.set_title(f'Stowed Foreground, # = {len(real_hyper)}')
+    '''
+    ax = fig.add_subplot(521)
+    ax.imshow(img_real_majority, norm=matplotlib.colors.LogNorm(), cmap='magma')
+    ax.set_title(f'Majority Foreground, # = {len(real_majority)}')
     ax.axis('off')
-    ax1 = fig.add_subplot(322)
-    ax1.imshow(img_fake_hyper, norm=matplotlib.colors.LogNorm(), cmap='magma')
-    ax1.set_title(f'Stowed Background, # = {len(fake_hyper)}')
+    ax1 = fig.add_subplot(522)
+    ax1.imshow(img_fake_majority, norm=matplotlib.colors.LogNorm(), cmap='magma')
+    ax1.set_title(f'Majority Background, # = {len(fake_majority)}')
     ax1.axis('off')
+    '''
     
-    ax2 = fig.add_subplot(323)
-    ax2.imshow(img_real_majority, norm=matplotlib.colors.LogNorm(), cmap='magma')
-    ax2.set_title(f'Majority Foreground, # = {len(real_majority)}')
+    ax2 = fig.add_subplot(421)
+    ax2.imshow(img_real_hyper, norm=matplotlib.colors.LogNorm(), cmap='magma')
+    ax2.set_title(f'Hyper Foreground, # = {len(real_hyper)}')
     ax2.axis('off')
-    ax3 = fig.add_subplot(324)
-    ax3.imshow(img_fake_majority, norm=matplotlib.colors.LogNorm(), cmap='magma')
-    ax3.set_title(f'Majority Background, # = {len(fake_majority)}')
+    ax3 = fig.add_subplot(422)
+    ax3.imshow(img_fake_hyper, norm=matplotlib.colors.LogNorm(), cmap='magma')
+    ax3.set_title(f'Hyper Background, # = {len(fake_hyper)}')
     ax3.axis('off')
     
-    ax4 = fig.add_subplot(325)
-    ax4.imshow(img_real, norm=matplotlib.colors.LogNorm(), cmap='magma')
-    ax4.set_title(f'Foreground, # = {len(real)}')
+    ax4 = fig.add_subplot(423)
+    ax4.imshow(img_real_steve, norm=matplotlib.colors.LogNorm(), cmap='magma')
+    ax4.set_title(f'Steve Foreground, # = {len(real_steve)}')
     ax4.axis('off')
-    ax5 = fig.add_subplot(326)
-    ax5.imshow(img_fake, norm=matplotlib.colors.LogNorm(), cmap='magma')
-    ax5.set_title(f'Background, # = {len(fake)}')
+    ax5 = fig.add_subplot(424)
+    ax5.imshow(img_fake_steve, norm=matplotlib.colors.LogNorm(), cmap='magma')
+    ax5.set_title(f'Steve Background, # = {len(fake_steve)}')
     ax5.axis('off')
+    
+    ax6 = fig.add_subplot(425)
+    ax6.imshow(img_real_stowed, norm=matplotlib.colors.LogNorm(), cmap='magma')
+    ax6.set_title(f'Stowed Foreground, # = {len(real_stowed)}')
+    ax6.axis('off')
+    ax7 = fig.add_subplot(426)
+    ax7.imshow(img_fake_stowed, norm=matplotlib.colors.LogNorm(), cmap='magma')
+    ax7.set_title(f'Stowed Background, # = {len(fake_stowed)}')
+    ax7.axis('off')
+    
+    ax8 = fig.add_subplot(427)
+    ax8.imshow(img_real, norm=matplotlib.colors.LogNorm(), cmap='magma')
+    ax8.set_title(f'Model Foreground, # = {len(real)}')
+    ax8.axis('off')
+    ax9 = fig.add_subplot(428)
+    ax9.imshow(img_fake, norm=matplotlib.colors.LogNorm(), cmap='magma')
+    ax9.set_title(f'Model Background, # = {len(fake)}')
+    ax9.axis('off')
+    ax8.annotate(f'Model = {name}', xy=(-0.1,-0.1), xycoords='axes fraction')
+    
     plt.show()
     
     return bright_frac, len(real)/len(dark)
 
-def radial_test(model, test):
+def radial_test(model, test, pixel_start):
     # % rejected as a function of radius (from center)
     extent = [[np.min(test['x'].values), np.max(test['x'].values)],
                   [np.min(test['y'].values), np.max(test['y'].values)]]
@@ -232,6 +718,8 @@ def radial_test(model, test):
     hyper_fail = test[test['class hyper'] == 0]
     
     y_predicted, _ = predict_fxn(model, test)
+    
+    
     
     data_pass = test[y_predicted > 0.5]
     data_fail = test[y_predicted < 0.5]
@@ -290,20 +778,6 @@ def radial_test(model, test):
     dist_hyper_fail = radial_bins_pix_hyper_fail/np.max(radial_bins_pix_hyper_fail)
 
     '''
-    hx_flat, hy_flat = margins(img_data_flat)
-    hx_model_pass, hy_model_pass = margins(img_data_model_pass)
-    hx_model_fail, hy_model_fail = margins(img_data_model_fail)
-    hx_hyper_pass, hy_hyper_pass = margins(img_data_hyper_pass)
-    hx_hyper_fail, hy_hyper_fail = margins(img_data_hyper_fail)
-
-    # print('hx all', hx_all.T[0], 'hy all', hy_all[0])
-    # hx_flat, hy_flat = img_data_flat.sum(axis=0), img_data_flat.sum(axis=1)
-    # hx_all, hy_all = img_data_all.sum(axis=0), img_data_all.sum(axis=1)
-
-    xs = np.linspace(0, len(hx_flat.T[0])-1, len(hx_flat.T[0]))
-    ys = np.linspace(0, len(hy_flat[0])-1, len(hy_flat[0]))
-    '''
-
     plt.clf()
 
     sns.set_style('darkgrid')
@@ -331,6 +805,8 @@ def radial_test(model, test):
     ax1.set_xlabel('Normalized difference')
     ax1.legend()
     
+    
+    
     ax2 = fig.add_subplot(312)
 
     ax2.step(radial_bins_pix[:-1], radial_bins_pix_model_pass, label='model pass', color='#F8333C')
@@ -344,17 +820,25 @@ def radial_test(model, test):
     ax3.step(radial_bins_pix[:-1], radial_bins_pix_hyper_fail, label='hyper fail', color='#BDBF09')
     ax3.set_xlabel('absolute number')
     ax3.legend()
-    '''
-    ax0.step(radial_bins_pix[:-1], dist_model_pass, label='model pass', color='#3A405A')
-    ax0.step(radial_bins_pix[:-1], dist_model_fail, label='model fail', color='#AEC5EB')
-    ax0.step(radial_bins_pix[:-1], dist_hyper_pass, label='hyper pass', color='#685044')
-    ax0.step(radial_bins_pix[:-1], dist_hyper_fail, label='hyper fail', color='#E9AFA3')
-
-    '''
+    
     plt.tight_layout()
     plt.show()
+    '''
+    
+   
     
     # How to quantify this? Maybe you don't need to?
+    model_diff = np.sum(dist_model_pass[pixel_start:] - dist_model_fail[pixel_start:])
+    hyper_diff = np.sum(dist_hyper_pass[pixel_start:] - dist_hyper_fail[pixel_start:])
+    
+    plt.clf()
+    plt.step(radial_bins_pix[:-1][pixel_start:], dist_model_pass[pixel_start:] - dist_model_fail[pixel_start:], label='model')
+    plt.step(radial_bins_pix[:-1][pixel_start:], dist_hyper_pass[pixel_start:] - dist_hyper_fail[pixel_start:], label='hyper')
+    plt.legend()
+    plt.show()
+    
+    return model_diff, hyper_diff
+    
 
 
 
@@ -369,7 +853,7 @@ massive_file = True  # False
 adjust_threshold = True
 
 
-
+print('USING TRAINING SET 2 WITH ALL OF THE BACKGROUND STUFF')
 
 # First step is to import the training and test sets
 subsample_train = pd.read_csv('../data/mega_dfs/training.csv',sep='\t')
@@ -379,9 +863,14 @@ subsample_test = pd.read_csv('../data/mega_dfs/test.csv',sep='\t')
 # Now load in the models
 # It would be awesome to be able to do this in a list
 # 'logistic/majority_hyper_and_energy.sav']
-model_name_list = ['logistic/baseline_hyper_and_energy.sav',
-                   'logistic/majority_hyper_and_energy.sav'
-                   ]
+model_name_list = ['logistic/knn_5_stowed_2_hyper_and_energy.sav',
+                    'logistic/knn_5_stowed_3_hyper_and_energy.sav',
+                   'logistic/knn_5_hyper_and_energy.sav']
+#,
+#                   'logistic/majority_hyper_and_energy.sav',
+#                   'logistic/baseline_hyper_and_energy.sav'
+#                   ]
+
 # 'kNN_hyper_and_energy_and_crs_2class_NN.sav']#kNN_all_2class
 
 
@@ -391,33 +880,54 @@ model_name_list = ['logistic/baseline_hyper_and_energy.sav',
 
 
 for name in model_name_list:
-    # then its a knodle model and you need to load from cache:
-    model = joblib.load('../models/'+name)
-    # Load up the features
-    # (not all saved models have features)
-    try:
-        feature_names = model.feature_names
-    except:
-        print('no features saved!')
-        continue
-    print('name', name)
-    print(model.feature_names)
+    if name == 'hyperscreen':
+        print('comparing hyperscreen')
+        print(subsample_test.columns)
+        y_predicted = subsample_test['class hyper']
+        model = 'hyperscreen'
+    else:
+        # then its a knodle model and you need to load from cache:
+        model = joblib.load('../models/'+name)
+        # Load up the features
+        # (not all saved models have features)
+        try:
+            feature_names = model.feature_names
+        except:
+            print('no features saved!')
+            continue
+        print('name', name)
+        print(model.feature_names)
 
-    try:
-        print('model.model', model.model)
+        try:
+            print('model.model', model.model)
 
-        # print('model._modules[linear]', model._modules['linear'])
-    except:
-        print('couldnt dig deeper')
+            # print('model._modules[linear]', model._modules['linear'])
+        except:
+            print('couldnt dig deeper')
+            
+        # First compare rules
+        # model.input_rules_matches_z
+        in_rules = model.input_rules_matches_z
+        out_rules = model.output_rules_matches_z
+        
+        
+        
 
-    # First column is in this order: ['class hyper','class steve','class stowed']
-    # hyper and steve are 1 if foreground
-    # stowed is 1 if background, so it reverse activates
+        # First column is in this order: ['class hyper','class steve','class stowed']
+        # hyper and steve are 1 if foreground
+        # stowed is 1 if background, so it reverse activates
+        
+        # so model.data used to be the old input
+        
+        y_predicted, ys = predict_fxn(model, subsample_test, sigmoid = False)
+        
+        print(y_predicted, ys)
+        
+        out = rule_compare(model, subsample_train, in_rules, out_rules, ys, plot=False)
+        print('frac same', out[0], 'frac diff', out[1])
+        print('fraction hyper change', out[2], 'steve change', out[3], 'stowed change', out[4])
+        print('number of changed to zeros', out[5], 'number changed to ones', out[6])
     
-    # so model.data used to be the old input
-    
-    y_predicted, ys = predict_fxn(model, subsample_test, sigmoid = True)
-
     
     
     compare_list = ['class overall','class hyper','class steve','class stowed']
@@ -434,8 +944,7 @@ for name in model_name_list:
         
         
         # accuracy with rounding
-        acc = ys[:, 0].round().eq(y_actual_tensor.round()).sum() / float(y_actual.shape[0])
-        print('test accuracy hyper', acc)
+       
         
         TP, TN, FP, FN = calc_confusion(y_predicted.round(), y_actual.round())
         print('confusion')
@@ -449,13 +958,21 @@ for name in model_name_list:
     # 2) a radial comparison (for 1505?)
     
     # 1) running the bright dark test
-    #frac_fg_bright, frac_fg_dark = run_bright_dark_test(subsample_train[subsample_train['id']=='1505'], subsample_train[subsample_train['id']=='hrciD2007-01-01bkgrndN0002.fits'])
+    print('length of dark relative to training', len(subsample_train[subsample_train['id']=='hrciD2007-01-01bkgrndN0002.fits'])/len(subsample_train))
+    
+    frac_fg_bright, frac_fg_dark = run_bright_dark_test(model,
+                                                        name,
+                                                        subsample_train[subsample_train['id']=='1505'], 
+                                                        subsample_train[subsample_train['id']=='hrciD2007-01-01bkgrndN0002.fits'])
+    print('frac_fg_bright', frac_fg_bright)
+    print('frac_fg_dark', frac_fg_dark)
     
     # 2) a radial comparison (for cas A?)
-    radial_test(model, subsample_train[subsample_train['id']=='1505'])
+    model_diff, hyper_diff = radial_test(model, subsample_train[subsample_train['id']=='1505'], 10)
+    print('model diff', model_diff)
+    print('hyper diff', hyper_diff)
     
-    break
-    
+    STOP
     continue
     
 
@@ -502,9 +1019,7 @@ for name in model_name_list:
     df = model.data
     
 
-    # model.input_rules_matches_z
-    in_rules = model.input_rules_matches_z
-    out_rules = model.output_rules_matches_z
+    
 
     
 
@@ -512,250 +1027,6 @@ for name in model_name_list:
 
     
 
-    # Okay time to go one column at a time
-    df['before_hyper'] = in_rules[:,0]
-    df['after_hyper'] = out_rules[:,0]
-
-    df['before_steve'] = in_rules[:,1]
-    df['after_steve'] = out_rules[:,1]
-
-    df['before_stowed'] = in_rules[:,2]
-    df['after_stowed'] = out_rules[:,2]
-
-    try: #selecting out by ID
-        df['id'] = model.ids
-        print(model.ids)
-
-        df = df[df['id'] == '1505']#hrciD2010-01-01bkgrndN0002.fits
-    except:
-        print('cannot select by ID')
-
-    
-
-
-    print('~~~~~~~~~~~ Diagnostics ~~~~~~~~~~~~~~~')
-    print('length of df', len(df))
-    print('~~~ Stowed ~~~~')
-    print('length of real before', len(df[df['before_stowed']==0]))
-    print('length of real after', len(df[df['after_stowed']==0]))
-
-    print('~~~ Hyper ~~~~')
-    print('length of real before', len(df[df['before_hyper']==1]))
-    print('length of real after', len(df[df['after_hyper']==1]))
-
-    print('~~~ Steve ~~~~')
-    print('length of real before', len(df[df['before_steve']==1]))
-    print('length of real after', len(df[df['after_steve']==1]))
-
-    print('~~~ Stowed ~~~~')
-    print('length of fake before', len(df[df['before_stowed']==1]))
-    print('length of fake after', len(df[df['after_stowed']==1]))
-
-    print('~~~ Hyper ~~~~')
-    print('length of fake before', len(df[df['before_hyper']==0]))
-    print('length of fake after', len(df[df['after_hyper']==0]))
-
-    print('~~~ Steve ~~~~')
-    print('length of fake before', len(df[df['before_steve']==0]))
-    print('length of fake after', len(df[df['after_steve']==0]))
-
-    print('~~~~~~~~~~~~~~~~~~~~~~')
-    print('stats on what changed')
-    print('fraction of stowed that change', len(df[((df['before_stowed']==0) & (df['after_stowed']==1)) | ((df['before_stowed']==1) & (df['after_stowed']==0))])/len(df))
-    print('fraction of hyper that change', len(df[((df['before_hyper']==0) & (df['after_hyper']==1)) | ((df['before_hyper']==1) & (df['after_hyper']==0))])/len(df))
-    print('fraction of steve that change', len(df[((df['before_steve']==0) & (df['after_steve']==1)) | ((df['before_steve']==1) & (df['after_steve']==0))])/len(df))
-
-
-    
-    # Make some comparison hyperbola figs
-
-    xs_list = ['fp_u','fp_v','pha']
-    ys_list = ['fb_u','fb_v','sumamps']
-    for x, y in zip(xs_list, ys_list):
-
-        
-        fig = plt.figure(figsize = (10,4))
-        ax = fig.add_subplot(131)
-        ax.scatter(df[df['before_steve']==0][x].values, df[df['before_steve']==0][y].values, label='background', s=0.3, color='#14110F')
-        ax.scatter(df[df['before_steve']==1][x].values, df[df['before_steve']==1][y].values, label='foreground', s=0.3, color='#FE5F55')
-        ax.set_title('hyperbola before knodle')
-        plt.legend()
-
-        ax1 = fig.add_subplot(132)
-        ax1.scatter(df[df['after_steve']==0][x].values, df[df['after_steve']==0][y].values, label='background', s=0.3, color='#14110F')
-        ax1.scatter(df[df['after_steve']==1][x].values, df[df['after_steve']==1][y].values, label='foreground', s=0.3, color='#FE5F55')
-        ax1.set_title('after knodle (total # = '+str(len(df))+')')
-        plt.legend()
-
-        ax2 = fig.add_subplot(133)
-        ax2.scatter(df[(df['after_steve']==0) & (df['before_steve']==1)][x].values, df[(df['after_steve']==0) & (df['before_steve']==1)][y].values, 
-            label='changed to background (# = '+str(len(df[(df['after_steve']==0) & (df['before_steve']==1)][x].values))+')', s=0.3, color='#14110F')
-        ax2.scatter(df[(df['after_steve']==1) & (df['before_steve']==0)][x].values, df[(df['after_steve']==1) & (df['before_steve']==0)][y].values, 
-            label='changed to foreground (# = '+str(len(df[(df['after_steve']==1) & (df['before_steve']==0)][x].values))+')', s=0.3, color='#FE5F55')
-        ax2.set_title('what changed?')
-        plt.legend()
-
-
-        plt.show()
-
-        
-
-        
-        fig = plt.figure(figsize = (10,4))
-        ax2 = fig.add_subplot(131)
-        ax2.scatter(df[df['before_hyper']==0][x].values, df[df['before_hyper']==0][y].values, label='background', s=0.3, color='#14110F')
-        ax2.scatter(df[df['before_hyper']==1][x].values, df[df['before_hyper']==1][y].values, label='foreground', s=0.3, color='#FE5F55')
-        ax2.set_title('hyperscreen before knodle')
-        plt.legend()
-
-        ax3 = fig.add_subplot(132)
-        ax3.scatter(df[df['after_hyper']==0][x].values, df[df['after_hyper']==0][y].values, label='background', s=0.3, color='#14110F')
-        ax3.scatter(df[df['after_hyper']==1][x].values, df[df['after_hyper']==1][y].values, label='foreground', s=0.3, color='#FE5F55')
-        ax3.set_title('after knodle (total # = '+str(len(df))+')')
-        plt.legend()
-
-        ax4 = fig.add_subplot(133)
-        ax4.scatter(df[(df['after_hyper']==0) & (df['before_hyper']==1)][x].values, df[(df['after_hyper']==0) & (df['before_hyper']==1)][y].values, 
-            label='changed to background (# = '+str(len(df[(df['after_hyper']==0) & (df['before_hyper']==1)][y].values))+')', s=0.3, color='#14110F')
-        ax4.scatter(df[(df['after_hyper']==1) & (df['before_hyper']==0)][x].values, df[(df['after_hyper']==1) & (df['before_hyper']==0)][y].values, 
-            label='changed to foreground (# = '+str(len(df[(df['after_hyper']==1) & (df['before_hyper']==0)][y].values))+')', s=0.3, color='#FE5F55')
-        ax4.set_title('what changed?')
-        plt.legend()
-
-        plt.show()
-
-        
-        fig = plt.figure(figsize = (10,4))
-        ax2 = fig.add_subplot(131)
-        ax2.scatter(df[df['before_stowed']==1][x].values, df[df['before_stowed']==1][y].values, label='background', s=0.3, color='#14110F')
-        ax2.scatter(df[df['before_stowed']==0][x].values, df[df['before_stowed']==0][y].values, label='foreground', s=0.3, color='#FE5F55')
-        ax2.set_title('stowed before knodle')
-        plt.legend()
-
-        ax3 = fig.add_subplot(132)
-        ax3.scatter(df[df['after_stowed']==1][x].values, df[df['after_stowed']==1][y].values, label='background', s=0.3, color='#14110F')
-        ax3.scatter(df[df['after_stowed']==0][x].values, df[df['after_stowed']==0][y].values, label='foreground', s=0.3, color='#FE5F55')
-        ax3.set_title('after knodle (total # = '+str(len(df))+')')
-        plt.legend()
-
-        ax4 = fig.add_subplot(133)
-        ax4.scatter(df[(df['after_stowed']==1) & (df['before_stowed']==0)][x].values, df[(df['after_stowed']==1) & (df['before_stowed']==0)][y].values, 
-            label='changed to background (# = '+str(len(df[(df['after_stowed']==1) & (df['before_stowed']==0)][y].values))+')', s=0.3, color='#14110F')
-        ax4.scatter(df[(df['after_stowed']==0) & (df['before_stowed']==1)][x].values, df[(df['after_stowed']==0) & (df['before_stowed']==1)][y].values, 
-            label='changed to foreground (# = '+str(len(df[(df['after_stowed']==0) & (df['before_stowed']==1)][y].values))+')', s=0.3, color='#FE5F55')
-        ax4.set_title('what changed?')
-        plt.legend()
-
-        plt.show()
-    
-
-    # Good that its shorter after
-    nbins = 50
-    # Make an image
-    img_stowed_bg_before, yedges, xedges = np.histogram2d(df[df['before_stowed']==1]['y'].values, df[df['before_stowed']==1]['x'].values, nbins)#, range=extent)
-    img_stowed_bg_after, yedges, xedges = np.histogram2d(df[df['after_stowed']==1]['y'].values, df[df['after_stowed']==1]['x'].values, nbins)#, range=extent)
-
-    img_stowed_fg_before, yedges, xedges = np.histogram2d(df[df['before_stowed']==0]['y'].values, df[df['before_stowed']==0]['x'].values, nbins)#, range=extent)
-    img_stowed_fg_after, yedges, xedges = np.histogram2d(df[df['after_stowed']==0]['y'].values, df[df['after_stowed']==0]['x'].values, nbins)#, range=extent)
-
-
-    plt.clf()
-    fig = plt.figure(figsize = (8,8))
-    ax = fig.add_subplot(221)
-    try:
-        im = ax.imshow(abs(img_stowed_fg_before), norm=matplotlib.colors.LogNorm())
-        ax.set_title('Foreground stowed before')
-        plt.colorbar(im)
-    except:
-        im = ax.imshow(abs(img_stowed_fg_before))
-        ax.set_title('Foreground stowed before')
-        plt.colorbar(im)
-    
-
-    ax1 = fig.add_subplot(222)
-    im1 = ax1.imshow(abs(img_stowed_fg_after), norm=matplotlib.colors.LogNorm())
-    ax1.set_title('Foreground stowed after')
-    plt.colorbar(im1)
-
-    ax2 = fig.add_subplot(223)
-    try:
-        im2 = ax2.imshow(abs(img_stowed_bg_before), norm=matplotlib.colors.LogNorm())
-        ax2.set_title('Background stowed before')
-        plt.colorbar(im2)
-    except:
-        im2 = ax2.imshow(abs(img_stowed_bg_before))
-        ax2.set_title('Background stowed before')
-        plt.colorbar(im2)
-    
-
-    ax3 = fig.add_subplot(224)
-    im3 = ax3.imshow(abs(img_stowed_bg_after), norm=matplotlib.colors.LogNorm())
-    ax3.set_title('Background stowed after')
-    plt.colorbar(im3)
-
-    plt.show()
-
-    img_hyper_bg_before, yedges, xedges = np.histogram2d(df[df['before_hyper']==1]['y'].values, df[df['before_hyper']==1]['x'].values, nbins)#, range=extent)
-    img_hyper_bg_after, yedges, xedges = np.histogram2d(df[df['after_hyper']==1]['y'].values, df[df['after_hyper']==1]['x'].values, nbins)#, range=extent)
-
-    img_hyper_fg_before, yedges, xedges = np.histogram2d(df[df['before_hyper']==0]['y'].values, df[df['before_hyper']==0]['x'].values, nbins)#, range=extent)
-    img_hyper_fg_after, yedges, xedges = np.histogram2d(df[df['after_hyper']==0]['y'].values, df[df['after_hyper']==0]['x'].values, nbins)#, range=extent)
-
-
-    plt.clf()
-    fig = plt.figure()
-    ax = fig.add_subplot(221)
-    im = ax.imshow(abs(img_hyper_fg_before), norm=matplotlib.colors.LogNorm())
-    ax.set_title('Foreground hyper before')
-    plt.colorbar(im)
-
-    ax1 = fig.add_subplot(222)
-    im1 = ax1.imshow(abs(img_hyper_fg_after), norm=matplotlib.colors.LogNorm())
-    ax1.set_title('Foreground hyper after')
-    plt.colorbar(im1)
-
-    ax2 = fig.add_subplot(223)
-    im2 = ax2.imshow(abs(img_hyper_bg_before), norm=matplotlib.colors.LogNorm())
-    ax2.set_title('Background hyper before')
-    plt.colorbar(im2)
-
-    ax3 = fig.add_subplot(224)
-    im3 = ax3.imshow(abs(img_hyper_bg_after), norm=matplotlib.colors.LogNorm())
-    ax3.set_title('Background hyper after')
-    plt.colorbar(im3)
-
-    plt.show()
-
-    img_steve_bg_before, yedges, xedges = np.histogram2d(df[df['before_steve']==1]['y'].values, df[df['before_steve']==1]['x'].values, nbins)#, range=extent)
-    img_steve_bg_after, yedges, xedges = np.histogram2d(df[df['after_steve']==1]['y'].values, df[df['after_steve']==1]['x'].values, nbins)#, range=extent)
-
-    img_steve_fg_before, yedges, xedges = np.histogram2d(df[df['before_steve']==0]['y'].values, df[df['before_steve']==0]['x'].values, nbins)#, range=extent)
-    img_steve_fg_after, yedges, xedges = np.histogram2d(df[df['after_steve']==0]['y'].values, df[df['after_steve']==0]['x'].values, nbins)#, range=extent)
-
-
-    plt.clf()
-    fig = plt.figure()
-    ax = fig.add_subplot(221)
-    im = ax.imshow(abs(img_steve_fg_before), norm=matplotlib.colors.LogNorm())
-    ax.set_title('Foreground steve before')
-    plt.colorbar(im)
-
-    ax1 = fig.add_subplot(222)
-    im1 = ax1.imshow(abs(img_steve_fg_after), norm=matplotlib.colors.LogNorm())
-    ax1.set_title('Foreground steve after')
-    plt.colorbar(im1)
-
-    ax2 = fig.add_subplot(223)
-    im2 = ax2.imshow(abs(img_steve_bg_before), norm=matplotlib.colors.LogNorm())
-    ax2.set_title('Background steve before')
-    plt.colorbar(im2)
-
-    ax3 = fig.add_subplot(224)
-    im3 = ax3.imshow(abs(img_steve_bg_after), norm=matplotlib.colors.LogNorm())
-    ax3.set_title('Background steve after')
-    plt.colorbar(im3)
-
-    plt.show()
 
     
 

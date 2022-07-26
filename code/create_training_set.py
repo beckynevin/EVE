@@ -6,10 +6,9 @@
 
 ###~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 import pandas as pd
-import sys
 #sys.path.append("..")
 #from utils.utils_for_knodle import *
-from sklearn import preprocessing
+
 
 # Import the mega table which has 1e7 lines of code:
 df = pd.read_csv('../data/mega_dfs/weak_supervision_with_steve.csv', sep='\t')
@@ -17,7 +16,7 @@ df = pd.read_csv('../data/mega_dfs/weak_supervision_with_steve.csv', sep='\t')
 
 # Optional way to select from specific IDs
 # I think I added this because there were a lot more backgrounds than anything else
-df = df[(df['id']=='1505') | (df['id']=='1287') | (df['id']=='579') | (df['id']=='hrciD2007-01-01bkgrndN0002.fits')]
+#df = df[(df['id']=='1505') | (df['id']=='1287') | (df['id']=='579') | (df['id']=='hrciD2007-01-01bkgrndN0002.fits')]
 
 # fill everything that isn't background wtih zeros
 df['class stowed'] = df['class stowed'].fillna(0)
@@ -52,6 +51,6 @@ subsample_dev = rest_subsample.sample(frac = 0.5)
 subsample_test = rest_subsample.drop(subsample_dev.index)
 
 # Now save these 
-subsample.to_csv('../data/mega_dfs/training.csv',sep='\t')
-subsample_dev.to_csv('../data/mega_dfs/dev.csv',sep='\t')
-subsample_test.to_csv('../data/mega_dfs/test.csv',sep='\t')
+subsample.to_csv('../data/mega_dfs/training_2.csv',sep='\t')
+subsample_dev.to_csv('../data/mega_dfs/dev_2.csv',sep='\t')
+subsample_test.to_csv('../data/mega_dfs/test_2.csv',sep='\t')
